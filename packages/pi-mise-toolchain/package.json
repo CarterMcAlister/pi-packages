@@ -1,0 +1,76 @@
+{
+  "name": "@cmc/pi-mise-toolchain",
+  "version": "0.6.1",
+  "description": "Mise-driven toolchain enforcement for Pi",
+  "author": "Carter McAlister",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CarterMcAlister/pi-packages.git",
+    "directory": "packages/pi-mise-toolchain"
+  },
+  "bugs": {
+    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
+  },
+  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-mise-toolchain#readme",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "toolchain",
+    "mise",
+    "bun"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "@aliou/pi-utils-settings": "^0.13.0",
+    "@aliou/sh": "^0.1.0",
+    "@iarna/toml": "^2.2.5"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "0.61.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.13",
+    "@changesets/cli": "^2.27.11",
+    "@mariozechner/pi-coding-agent": "0.61.0",
+    "@mariozechner/pi-tui": "0.61.0",
+    "@sinclair/typebox": "^0.34.48",
+    "@types/node": "^25.0.10",
+    "bun-types": "latest",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@mariozechner/pi-ai": "$@mariozechner/pi-coding-agent",
+    "@mariozechner/pi-tui": "$@mariozechner/pi-coding-agent"
+  },
+  "scripts": {
+    "format": "bunx @biomejs/biome check --write .",
+    "lint": "bunx @biomejs/biome check .",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
+    "test": "bun test",
+    "check": "bun run lint && bun run typecheck && bun run test",
+    "check:lockfile": "bun install --frozen-lockfile",
+    "changeset": "bunx changeset",
+    "version": "bunx changeset version",
+    "release": "bunx changeset publish"
+  },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    }
+  }
+}

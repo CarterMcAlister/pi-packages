@@ -1,0 +1,61 @@
+{
+  "name": "@cmc/pi-worktrunk",
+  "version": "0.4.0",
+  "description": "Worktrunk-backed worktree extension for Pi Coding Agent",
+  "author": "Carter McAlister",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CarterMcAlister/pi-packages.git",
+    "directory": "packages/pi-worktrunk"
+  },
+  "bugs": {
+    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
+  },
+  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-worktrunk#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "git-worktrees",
+    "worktrunk"
+  ],
+  "scripts": {
+    "format": "bunx @biomejs/biome check --write .",
+    "lint": "bunx @biomejs/biome check .",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
+    "test": "bun test",
+    "check": "bun run lint && bun run typecheck && bun run test"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "dependencies": {
+    "@zenobius/pi-extension-config": "^0.2.0",
+    "typebox": "^1.0.81"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.13",
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "@types/node": "^20.11.5",
+    "bun-types": "latest",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}

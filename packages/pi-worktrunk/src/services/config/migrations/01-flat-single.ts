@@ -1,4 +1,4 @@
-import type { Migration } from '@zenobius/pi-extension-config';
+import type { Migration } from '@zenobius/pi-extension-config'
 import {
   Optional,
   type Static,
@@ -6,10 +6,10 @@ import {
   Object as TypeObject,
   String as TypeString,
   Union,
-} from 'typebox';
-import { Parse } from 'typebox/value';
+} from 'typebox'
+import { Parse } from 'typebox/value'
 
-const LegacyOnCreateSchema = Union([TypeString(), TypeArray(TypeString())]);
+const LegacyOnCreateSchema = Union([TypeString(), TypeArray(TypeString())])
 
 const LegacyWorktreeSettingsSchema = TypeObject(
   {
@@ -19,7 +19,7 @@ const LegacyWorktreeSettingsSchema = TypeObject(
   {
     additionalProperties: true,
   },
-);
+)
 
 const LegacyConfigSchema = TypeObject(
   {
@@ -30,69 +30,69 @@ const LegacyConfigSchema = TypeObject(
   {
     additionalProperties: true,
   },
-);
+)
 
-type LegacyConfig = Static<typeof LegacyConfigSchema>;
+type LegacyConfig = Static<typeof LegacyConfigSchema>
 
 function toRecord(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return {};
+    return {}
   }
 
-  return { ...(value as Record<string, unknown>) };
+  return { ...(value as Record<string, unknown>) }
 }
 
 function getFallbackSettings(config: LegacyConfig): Record<string, unknown> {
-  const nested = config.worktree ?? {};
+  const nested = config.worktree ?? {}
 
-  const fallback: Record<string, unknown> = {};
+  const fallback: Record<string, unknown> = {}
   if (nested.parentDir !== undefined) {
-    fallback.parentDir = nested.parentDir;
+    fallback.parentDir = nested.parentDir
   } else if (config.parentDir !== undefined) {
-    fallback.parentDir = config.parentDir;
+    fallback.parentDir = config.parentDir
   }
 
   if (nested.onCreate !== undefined) {
-    fallback.onCreate = nested.onCreate;
+    fallback.onCreate = nested.onCreate
   } else if (config.onCreate !== undefined) {
-    fallback.onCreate = config.onCreate;
+    fallback.onCreate = config.onCreate
   }
 
-  return fallback;
+  return fallback
 }
 
 export const migration: Migration = {
   id: 'legacy-flat-worktree-settings',
   up(config: unknown): Record<string, unknown> {
-    const record = toRecord(config);
-    const parsed = Parse(LegacyConfigSchema, record);
-    const fallback = getFallbackSettings(parsed);
+    const record = toRecord(config)
+    const parsed = Parse(LegacyConfigSchema, record)
+    const fallback = getFallbackSettings(parsed)
 
-    const next = { ...record };
+    const next = { ...record }
     if (Object.keys(fallback).length > 0) {
-      next.worktree = fallback;
+      next.worktree = fallback
     }
 
-    delete next.parentDir;
-    delete next.onCreate;
+    delete next.parentDir
+    delete next.onCreate
 
-    return next;
+    return next
   },
   down(config: unknown): Record<string, unknown> {
-    const record = toRecord(config);
-    const parsed = Parse(LegacyConfigSchema, record);
-    const worktree = toRecord(parsed.worktree);
+    const record = toRecord(config)
+    const parsed = Parse(LegacyConfigSchema, record)
+    const worktree = toRecord(parsed.worktree)
 
-    const next = { ...record };
+    const next = { ...record }
     if (worktree.parentDir !== undefined) {
-      next.parentDir = worktree.parentDir;
+      next.parentDir = worktree.parentDir
     }
 
     if (worktree.onCreate !== undefined) {
-      next.onCreate = worktree.onCreate;
+      next.onCreate = worktree.onCreate
     }
 
-    delete next.worktree;
-    return next;
+    delete next.worktree
+    return next
   },
-};
+}

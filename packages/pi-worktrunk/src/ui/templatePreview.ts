@@ -1,21 +1,21 @@
-import type { Theme } from '@mariozechner/pi-coding-agent';
-import { Key, matchesKey, wrapTextWithAnsi } from '@mariozechner/pi-tui';
+import type { Theme } from '@mariozechner/pi-coding-agent'
+import { Key, matchesKey, wrapTextWithAnsi } from '@mariozechner/pi-tui'
 
 export interface TemplateToken {
-  token: string;
-  value: string;
-  source: string;
+  token: string
+  value: string
+  source: string
 }
 
-type TemplatePreviewTheme = Pick<Theme, 'fg' | 'bold'>;
+type TemplatePreviewTheme = Pick<Theme, 'fg' | 'bold'>
 
 interface TemplatePreviewInput {
-  cwd: string;
-  currentBranch: string;
-  parentDirTemplate: string;
-  parentDirPreview: string;
-  sampleFeatureName: string;
-  tokens: TemplateToken[];
+  cwd: string
+  currentBranch: string
+  parentDirTemplate: string
+  parentDirPreview: string
+  sampleFeatureName: string
+  tokens: TemplateToken[]
 }
 
 export function createTemplatePreviewComponent(
@@ -23,9 +23,9 @@ export function createTemplatePreviewComponent(
   theme: TemplatePreviewTheme,
   done: () => void,
 ): {
-  render: (_width: number) => string[];
-  invalidate: () => void;
-  handleInput: (_data: string) => void;
+  render: (_width: number) => string[]
+  invalidate: () => void
+  handleInput: (_data: string) => void
 } {
   const lines = [
     theme.fg('accent', theme.bold('Template Variables Preview')),
@@ -46,21 +46,21 @@ export function createTemplatePreviewComponent(
     `  - This command uses generated data for them (${input.sampleFeatureName}).`,
     '',
     theme.fg('dim', 'Press enter, esc, or q to close.'),
-  ];
+  ]
 
   return {
     render(width: number): string[] {
-      const wrapped: string[] = [];
+      const wrapped: string[] = []
       for (const line of lines) {
         if (!line) {
-          wrapped.push('');
-          continue;
+          wrapped.push('')
+          continue
         }
 
-        wrapped.push(...wrapTextWithAnsi(line, width));
+        wrapped.push(...wrapTextWithAnsi(line, width))
       }
 
-      return wrapped;
+      return wrapped
     },
     invalidate(): void {},
     handleInput(data: string): void {
@@ -70,8 +70,8 @@ export function createTemplatePreviewComponent(
         data === 'q' ||
         data === 'Q'
       ) {
-        done();
+        done()
       }
     },
-  };
+  }
 }

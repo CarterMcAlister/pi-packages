@@ -1,45 +1,45 @@
-import { spawn } from 'child_process';
-import { appendFileSync, writeFileSync } from 'fs';
-import type { WorktreeSettingsConfig } from '../services/config/schema.ts';
-import { expandTemplate } from '../services/templates.ts';
-import type { WorktreeCreatedContext } from '../types.ts';
+import { spawn } from 'child_process'
+import { appendFileSync, writeFileSync } from 'fs'
+import type { WorktreeSettingsConfig } from '../services/config/schema.ts'
+import { expandTemplate } from '../services/templates.ts'
+import type { WorktreeCreatedContext } from '../types.ts'
 
 interface CommandResult {
-  success: boolean;
-  code: number;
-  stdout: string;
-  stderr: string;
+  success: boolean
+  code: number
+  stdout: string
+  stderr: string
 }
 
 interface CommandOutput {
-  stdout: string;
-  stderr: string;
+  stdout: string
+  stderr: string
 }
 
 export interface OnCreateResult {
-  success: boolean;
-  executed: string[];
+  success: boolean
+  executed: string[]
   failed?: {
-    command: string;
-    code: number;
-    error: string;
-  };
+    command: string
+    code: number
+    error: string
+  }
 }
 
-type CommandState = 'pending' | 'running' | 'success' | 'failed';
+type CommandState = 'pending' | 'running' | 'success' | 'failed'
 
 export interface OnCreateHookOptions {
-  logPath?: string;
-  displayOutputMaxLines?: number;
-  cmdDisplayPending?: string;
-  cmdDisplaySuccess?: string;
-  cmdDisplayError?: string;
-  cmdDisplayPendingColor?: string;
-  cmdDisplaySuccessColor?: string;
-  cmdDisplayErrorColor?: string;
+  logPath?: string
+  displayOutputMaxLines?: number
+  cmdDisplayPending?: string
+  cmdDisplaySuccess?: string
+  cmdDisplayError?: string
+  cmdDisplayPendingColor?: string
+  cmdDisplaySuccessColor?: string
+  cmdDisplayErrorColor?: string
 }
 export function sanitizePathPart(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]/g, '-');
+  return value.replace(/[^a-zA-Z0-9._-]/g, '-')
 }
 
 export function resolveLogfilePath(
@@ -49,7 +49,7 @@ export function resolveLogfilePath(
   return template
     .replace(/\{\{sessionId\}\}|\{sessionId\}/g, values.sessionId)
     .replace(/\{\{name\}\}|\{name\}/g, values.name)
-    .replace(/\{\{timestamp\}\}|\{timestamp\}/g, values.timestamp);
+    .replace(/\{\{timestamp\}\}|\{timestamp\}/g, values.timestamp)
 }
 
 const ANSI = {
@@ -59,52 +59,52 @@ const ANSI = {
   green: '\u001b[32m',
   red: '\u001b[31m',
   yellow: '\u001b[33m',
-};
+}
 
 interface CommandDisplayConfig {
-  pendingTemplate: string;
-  successTemplate: string;
-  errorTemplate: string;
-  pendingColor: string;
-  successColor: string;
-  errorColor: string;
+  pendingTemplate: string
+  successTemplate: string
+  errorTemplate: string
+  pendingColor: string
+  successColor: string
+  errorColor: string
 }
 
 function applyCommandTemplate(template: string, command: string): string {
-  return template.replace(/\{\{cmd\}\}|\{cmd\}/g, command);
+  return template.replace(/\{\{cmd\}\}|\{cmd\}/g, command)
 }
 
 function resolveAnsiColor(colorName: string): string {
   if (colorName === 'dim') {
-    return ANSI.gray;
+    return ANSI.gray
   }
 
   if (colorName === 'accent' || colorName === 'info') {
-    return ANSI.blue;
+    return ANSI.blue
   }
 
   if (colorName === 'success') {
-    return ANSI.green;
+    return ANSI.green
   }
 
   if (colorName === 'error') {
-    return ANSI.red;
+    return ANSI.red
   }
 
   if (colorName === 'warning') {
-    return ANSI.yellow;
+    return ANSI.yellow
   }
 
-  return '';
+  return ''
 }
 
 function colorize(text: string, colorName: string): string {
-  const ansi = resolveAnsiColor(colorName);
+  const ansi = resolveAnsiColor(colorName)
   if (!ansi) {
-    return text;
+    return text
   }
 
-  return `${ansi}${text}${ANSI.reset}`;
+  return `${ansi}${text}${ANSI.reset}`
 }
 
 function formatCommandLine(
@@ -116,20 +116,20 @@ function formatCommandLine(
     return colorize(
       applyCommandTemplate(config.successTemplate, command),
       config.successColor,
-    );
+    )
   }
 
   if (state === 'failed') {
     return colorize(
       applyCommandTemplate(config.errorTemplate, command),
       config.errorColor,
-    );
+    )
   }
 
   return colorize(
     applyCommandTemplate(config.pendingTemplate, command),
     config.pendingColor,
-  );
+  )
 }
 
 function toLines(text: string): string[] {
@@ -137,7 +137,7 @@ function toLines(text: string): string[] {
     .replace(/\r/g, '')
     .split('\n')
     .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0);
+    .filter((line) => line.length > 0)
 }
 
 function formatOutputLine(
@@ -145,27 +145,27 @@ function formatOutputLine(
   line: string,
   state: CommandState,
 ): string {
-  const prefix = stream === 'stderr' ? '⚠' : '›';
+  const prefix = stream === 'stderr' ? '⚠' : '›'
 
   if (state === 'running') {
-    return `   ${prefix} ${line}`;
+    return `   ${prefix} ${line}`
   }
 
-  return `${ANSI.gray}   ${prefix} ${line}${ANSI.reset}`;
+  return `${ANSI.gray}   ${prefix} ${line}${ANSI.reset}`
 }
 
 function getDisplayLines(text: string, maxLines: number): string[] {
-  const lines = toLines(text);
+  const lines = toLines(text)
   if (maxLines < 0) {
     // Negative values mean "no limit" – return all lines.
-    return lines;
+    return lines
   }
 
   if (maxLines === 0) {
     // Explicitly requested no output.
-    return [];
+    return []
   }
-  return lines.slice(-maxLines);
+  return lines.slice(-maxLines)
 }
 
 function formatCommandList(
@@ -177,28 +177,28 @@ function formatCommandList(
   logPath?: string,
   displayOutputMaxLines = 5,
 ): string {
-  const lines: string[] = [`${hookName} steps:`];
+  const lines: string[] = [`${hookName} steps:`]
   for (const [index, command] of commands.entries()) {
-    const state = states[index];
-    lines.push(formatCommandLine(command, state, commandDisplay));
+    const state = states[index]
+    lines.push(formatCommandLine(command, state, commandDisplay))
     for (const line of getDisplayLines(
       outputs[index].stdout,
       displayOutputMaxLines,
     )) {
-      lines.push(formatOutputLine('stdout', line, state));
+      lines.push(formatOutputLine('stdout', line, state))
     }
     for (const line of getDisplayLines(
       outputs[index].stderr,
       displayOutputMaxLines,
     )) {
-      lines.push(formatOutputLine('stderr', line, state));
+      lines.push(formatOutputLine('stderr', line, state))
     }
   }
   if (logPath) {
-    lines.push('');
-    lines.push(`${ANSI.gray}log: ${logPath}${ANSI.reset}`);
+    lines.push('')
+    lines.push(`${ANSI.gray}log: ${logPath}${ANSI.reset}`)
   }
-  return lines.join('\n');
+  return lines.join('\n')
 }
 
 function appendCommandLog(
@@ -206,22 +206,22 @@ function appendCommandLog(
   command: string,
   result: CommandResult,
 ): void {
-  const lines: string[] = [`$ ${command}`];
+  const lines: string[] = [`$ ${command}`]
 
   if (result.stdout) {
-    lines.push('[stdout]');
-    lines.push(result.stdout.trimEnd());
+    lines.push('[stdout]')
+    lines.push(result.stdout.trimEnd())
   }
 
   if (result.stderr) {
-    lines.push('[stderr]');
-    lines.push(result.stderr.trimEnd());
+    lines.push('[stderr]')
+    lines.push(result.stderr.trimEnd())
   }
 
-  lines.push(`[exit ${result.code}]`);
-  lines.push('');
+  lines.push(`[exit ${result.code}]`)
+  lines.push('')
 
-  appendFileSync(logPath, `${lines.join('\n')}\n`);
+  appendFileSync(logPath, `${lines.join('\n')}\n`)
 }
 
 function runCommand(
@@ -234,22 +234,22 @@ function runCommand(
       cwd,
       shell: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    })
 
-    let stdout = '';
-    let stderr = '';
+    let stdout = ''
+    let stderr = ''
 
     child.stdout?.on('data', (data) => {
-      const chunk = data.toString();
-      stdout += chunk;
-      onOutput?.('stdout', chunk);
-    });
+      const chunk = data.toString()
+      stdout += chunk
+      onOutput?.('stdout', chunk)
+    })
 
     child.stderr?.on('data', (data) => {
-      const chunk = data.toString();
-      stderr += chunk;
-      onOutput?.('stderr', chunk);
-    });
+      const chunk = data.toString()
+      stderr += chunk
+      onOutput?.('stderr', chunk)
+    })
 
     child.on('close', (code) => {
       resolve({
@@ -257,8 +257,8 @@ function runCommand(
         code: code ?? 1,
         stdout,
         stderr,
-      });
-    });
+      })
+    })
 
     child.on('error', (error) => {
       resolve({
@@ -266,9 +266,9 @@ function runCommand(
         code: 1,
         stdout: '',
         stderr: error.message,
-      });
-    });
-  });
+      })
+    })
+  })
 }
 
 /**
@@ -283,19 +283,19 @@ export async function runHook(
   options?: OnCreateHookOptions,
 ): Promise<OnCreateResult> {
   if (!hookValue) {
-    return { success: true, executed: [] };
+    return { success: true, executed: [] }
   }
 
-  const commandTemplates = Array.isArray(hookValue) ? hookValue : [hookValue];
+  const commandTemplates = Array.isArray(hookValue) ? hookValue : [hookValue]
   const commands = commandTemplates.map((template) =>
     expandTemplate(template, createdCtx),
-  );
-  const executed: string[] = [];
-  const commandStates: CommandState[] = commands.map(() => 'pending');
+  )
+  const executed: string[] = []
+  const commandStates: CommandState[] = commands.map(() => 'pending')
   const commandOutputs: CommandOutput[] = commands.map(() => ({
     stdout: '',
     stderr: '',
-  }));
+  }))
   if (options?.logPath) {
     writeFileSync(
       options.logPath,
@@ -305,9 +305,9 @@ export async function runHook(
         `# branch: ${createdCtx.branch}`,
         '',
       ].join('\n'),
-    );
+    )
   }
-  const displayOutputMaxLines = options?.displayOutputMaxLines ?? 5;
+  const displayOutputMaxLines = options?.displayOutputMaxLines ?? 5
   const commandDisplay: CommandDisplayConfig = {
     pendingTemplate: options?.cmdDisplayPending ?? '[ ] {{cmd}}',
     successTemplate: options?.cmdDisplaySuccess ?? '[x] {{cmd}}',
@@ -315,7 +315,7 @@ export async function runHook(
     pendingColor: options?.cmdDisplayPendingColor ?? 'dim',
     successColor: options?.cmdDisplaySuccessColor ?? 'success',
     errorColor: options?.cmdDisplayErrorColor ?? 'error',
-  };
+  }
 
   notify(
     formatCommandList(
@@ -328,9 +328,9 @@ export async function runHook(
       displayOutputMaxLines,
     ),
     'info',
-  );
+  )
   for (const [index, command] of commands.entries()) {
-    commandStates[index] = 'running';
+    commandStates[index] = 'running'
     notify(
       formatCommandList(
         commands,
@@ -342,12 +342,12 @@ export async function runHook(
         displayOutputMaxLines,
       ),
       'info',
-    );
+    )
     const result = await runCommand(
       command,
       createdCtx.path,
       (stream, chunk) => {
-        commandOutputs[index][stream] += chunk;
+        commandOutputs[index][stream] += chunk
         notify(
           formatCommandList(
             commands,
@@ -359,17 +359,17 @@ export async function runHook(
             displayOutputMaxLines,
           ),
           'info',
-        );
+        )
       },
-    );
+    )
 
     if (options?.logPath) {
-      appendCommandLog(options.logPath, command, result);
+      appendCommandLog(options.logPath, command, result)
     }
 
-    executed.push(command);
+    executed.push(command)
     if (!result.success) {
-      commandStates[index] = 'failed';
+      commandStates[index] = 'failed'
       notify(
         formatCommandList(
           commands,
@@ -381,13 +381,13 @@ export async function runHook(
           displayOutputMaxLines,
         ),
         'error',
-      );
+      )
       notify(
         `${hookName} failed (exit ${result.code}): ${result.stderr.slice(0, 200)}${
           options?.logPath ? `\nlog: ${options.logPath}` : ''
         }`,
         'error',
-      );
+      )
       return {
         success: false,
         executed,
@@ -396,9 +396,9 @@ export async function runHook(
           code: result.code,
           error: result.stderr,
         },
-      };
+      }
     }
-    commandStates[index] = 'success';
+    commandStates[index] = 'success'
     notify(
       formatCommandList(
         commands,
@@ -410,7 +410,7 @@ export async function runHook(
         displayOutputMaxLines,
       ),
       'info',
-    );
+    )
   }
 
   notify(
@@ -424,8 +424,8 @@ export async function runHook(
       displayOutputMaxLines,
     ),
     'info',
-  );
-  return { success: true, executed };
+  )
+  return { success: true, executed }
 }
 export async function runOnCreateHook(
   createdCtx: WorktreeCreatedContext,
@@ -433,5 +433,5 @@ export async function runOnCreateHook(
   notify: (_msg: string, _type: 'info' | 'error' | 'warning') => void,
   options?: OnCreateHookOptions,
 ): Promise<OnCreateResult> {
-  return runHook(createdCtx, settings.onCreate, 'onCreate', notify, options);
+  return runHook(createdCtx, settings.onCreate, 'onCreate', notify, options)
 }

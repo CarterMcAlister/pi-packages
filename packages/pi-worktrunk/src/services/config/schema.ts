@@ -8,9 +8,9 @@ import {
   Record as TypeRecord,
   String as TypeString,
   Union,
-} from 'typebox';
+} from 'typebox'
 
-const HookCommandsSchema = Union([TypeString(), TypeArray(TypeString())]);
+const HookCommandsSchema = Union([TypeString(), TypeArray(TypeString())])
 
 const WorktreeSettingsSchema = TypeObject(
   {
@@ -25,29 +25,29 @@ const WorktreeSettingsSchema = TypeObject(
     $id: 'WorktreeSettingsConfig',
     additionalProperties: false,
   },
-);
+)
 
 const MatchingStrategySchema = Union([
   Literal('fail-on-tie'),
   Literal('first-wins'),
   Literal('last-wins'),
-]);
+])
 
 // TODO: join this with MatchingStrategySchema
 const MatchStrategyResultSchema = Union([
   Literal('exact'),
   Literal('unmatched'),
-]);
+])
 
-const WorktreesMapSchema = TypeRecord(TypeString(), WorktreeSettingsSchema);
-const LogfileSchema = TypeString();
-const OnCreateDisplayOutputMaxLinesSchema = TypeInteger({ minimum: 0 });
-const OnCreateCmdDisplayPendingSchema = TypeString();
-const OnCreateCmdDisplaySuccessSchema = TypeString();
-const OnCreateCmdDisplayErrorSchema = TypeString();
-const OnCreateCmdDisplayPendingColorSchema = TypeString();
-const OnCreateCmdDisplaySuccessColorSchema = TypeString();
-const OnCreateCmdDisplayErrorColorSchema = TypeString();
+const WorktreesMapSchema = TypeRecord(TypeString(), WorktreeSettingsSchema)
+const LogfileSchema = TypeString()
+const OnCreateDisplayOutputMaxLinesSchema = TypeInteger({ minimum: 0 })
+const OnCreateCmdDisplayPendingSchema = TypeString()
+const OnCreateCmdDisplaySuccessSchema = TypeString()
+const OnCreateCmdDisplayErrorSchema = TypeString()
+const OnCreateCmdDisplayPendingColorSchema = TypeString()
+const OnCreateCmdDisplaySuccessColorSchema = TypeString()
+const OnCreateCmdDisplayErrorColorSchema = TypeString()
 
 export const PiWorktreeConfigSchema = TypeObject(
   {
@@ -72,17 +72,17 @@ export const PiWorktreeConfigSchema = TypeObject(
     $id: 'UnresolvedConfig',
     additionalProperties: true,
   },
-);
+)
 
-export type WorktreeSettingsConfig = Static<typeof WorktreeSettingsSchema>;
-export type MatchingStrategy = Static<typeof MatchingStrategySchema>;
-export type MatchingStrategyResult = Static<typeof MatchStrategyResultSchema>;
-export type PiWorktreeConfig = Static<typeof PiWorktreeConfigSchema>;
-export type PiWorktreeRecord = NonNullable<PiWorktreeConfig['worktrees']>;
-export type PiWorktreeLogTemplate = NonNullable<PiWorktreeConfig['logfile']>;
+export type WorktreeSettingsConfig = Static<typeof WorktreeSettingsSchema>
+export type MatchingStrategy = Static<typeof MatchingStrategySchema>
+export type MatchingStrategyResult = Static<typeof MatchStrategyResultSchema>
+export type PiWorktreeConfig = Static<typeof PiWorktreeConfigSchema>
+export type PiWorktreeRecord = NonNullable<PiWorktreeConfig['worktrees']>
+export type PiWorktreeLogTemplate = NonNullable<PiWorktreeConfig['logfile']>
 
 export function getConfiguredWorktreeRoot(
   settings: WorktreeSettingsConfig,
 ): string | undefined {
-  return settings.worktreeRoot ?? settings.parentDir;
+  return settings.worktreeRoot ?? settings.parentDir
 }

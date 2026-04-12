@@ -1,18 +1,18 @@
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
-import { setupBlockers } from './blockers';
-import { registerToolchainSettings } from './commands/settings-command';
+import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
+import { setupBlockers } from './blockers'
+import { registerToolchainSettings } from './commands/settings-command'
 import {
   configLoader,
   queueIgnoredLegacyLocalConfigWarning,
   resolveRuntimeConfig,
-} from './config';
-import { registerBashIntegration } from './hooks/bash-integration';
+} from './config'
+import { registerBashIntegration } from './hooks/bash-integration'
 import {
   hasRewriteFeatures,
   registerRewriteNotifications,
-} from './hooks/rewrite-notifications';
-import { registerSessionStartWarnings } from './hooks/session-start';
-import { findProjectToolchainConfig } from './project-config';
+} from './hooks/rewrite-notifications'
+import { registerSessionStartWarnings } from './hooks/session-start'
+import { findProjectToolchainConfig } from './project-config'
 
 /**
  * Toolchain Extension
@@ -30,18 +30,18 @@ import { findProjectToolchainConfig } from './project-config';
  * - Project toolchain: nearest mise.toml
  */
 export default async function (pi: ExtensionAPI) {
-  queueIgnoredLegacyLocalConfigWarning();
-  await configLoader.load();
-  const extensionConfig = configLoader.getConfig();
-  const projectConfig = await findProjectToolchainConfig();
-  const config = resolveRuntimeConfig(extensionConfig, projectConfig);
-  if (!config.enabled) return;
+  queueIgnoredLegacyLocalConfigWarning()
+  await configLoader.load()
+  const extensionConfig = configLoader.getConfig()
+  const projectConfig = await findProjectToolchainConfig()
+  const config = resolveRuntimeConfig(extensionConfig, projectConfig)
+  if (!config.enabled) return
 
-  registerToolchainSettings(pi);
-  registerSessionStartWarnings(pi);
-  setupBlockers(pi, config);
-  registerRewriteNotifications(pi, config);
+  registerToolchainSettings(pi)
+  registerSessionStartWarnings(pi)
+  setupBlockers(pi, config)
+  registerRewriteNotifications(pi, config)
 
-  if (!hasRewriteFeatures(config)) return;
-  registerBashIntegration(pi, config);
+  if (!hasRewriteFeatures(config)) return
+  registerBashIntegration(pi, config)
 }

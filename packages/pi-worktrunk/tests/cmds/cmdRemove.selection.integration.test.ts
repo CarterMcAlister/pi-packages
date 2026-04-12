@@ -1,8 +1,8 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test'
 
-import { cmdRemove } from '../../src/cmds/cmdRemove.ts';
-import type { WorktrunkListEntry } from '../../src/services/worktrunk.ts';
-import type { CommandDeps } from '../../src/types.ts';
+import { cmdRemove } from '../../src/cmds/cmdRemove.ts'
+import type { WorktrunkListEntry } from '../../src/services/worktrunk.ts'
+import type { CommandDeps } from '../../src/types.ts'
 
 function createDeps(): CommandDeps {
   return {
@@ -39,28 +39,28 @@ function createDeps(): CommandDeps {
       positive: mock(),
       critical: mock(),
     } as unknown as CommandDeps['statusService'],
-  };
+  }
 }
 
 describe('cmdRemove selection integration', () => {
   it('removes an interactively selected worktree via Worktrunk', async () => {
-    const deps = createDeps();
-    const notify = mock();
-    const confirm = mock(async () => true);
+    const deps = createDeps()
+    const notify = mock()
+    const confirm = mock(async () => true)
     const select = mock(
       async () => 'feature/auth\n  /repo.worktrees/feature-auth',
-    );
+    )
 
     await cmdRemove(
       '',
       { cwd: '/repo', hasUI: true, ui: { notify, confirm, select } } as never,
       deps,
-    );
+    )
 
-    expect(deps.worktrunk.remove).toHaveBeenCalledWith('/repo', 'feature/auth');
+    expect(deps.worktrunk.remove).toHaveBeenCalledWith('/repo', 'feature/auth')
     expect(notify).toHaveBeenCalledWith(
       '✓ Worktree removed: feature/auth',
       'info',
-    );
-  });
-});
+    )
+  })
+})

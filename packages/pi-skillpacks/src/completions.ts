@@ -1,35 +1,35 @@
-import type { AutocompleteItem } from '@mariozechner/pi-tui';
+import type { AutocompleteItem } from '@mariozechner/pi-tui'
 import {
   listSelectableSkillpackTargets,
   type SkillpackTarget,
-} from './discovery';
+} from './discovery'
 
 function normalizePrefix(prefix: string): string {
-  return prefix.trim().replaceAll('\\', '/').replace(/^\.\//, '');
+  return prefix.trim().replaceAll('\\', '/').replace(/^\.\//, '')
 }
 
 function describeTarget(kind: 'group' | 'skill', skillCount: number): string {
-  return `${kind} • ${skillCount === 1 ? '1 skill' : `${skillCount} skills`}`;
+  return `${kind} • ${skillCount === 1 ? '1 skill' : `${skillCount} skills`}`
 }
 
 export async function getAddCompletions(
   rootDir: string,
   prefix: string,
 ): Promise<AutocompleteItem[] | null> {
-  const normalizedPrefix = normalizePrefix(prefix);
+  const normalizedPrefix = normalizePrefix(prefix)
 
-  let targets: SkillpackTarget[];
+  let targets: SkillpackTarget[]
 
   try {
-    targets = await listSelectableSkillpackTargets(rootDir);
+    targets = await listSelectableSkillpackTargets(rootDir)
   } catch (error) {
-    const errno = error as NodeJS.ErrnoException;
+    const errno = error as NodeJS.ErrnoException
 
     if (errno.code === 'ENOENT') {
-      return null;
+      return null
     }
 
-    throw error;
+    throw error
   }
 
   const items = targets
@@ -38,16 +38,16 @@ export async function getAddCompletions(
       value: target.value,
       label: target.value,
       description: describeTarget(target.kind, target.skillCount),
-    }));
+    }))
 
-  return items.length > 0 ? items : null;
+  return items.length > 0 ? items : null
 }
 
 export function getRemoveCompletions(
   selectedPaths: Iterable<string>,
   prefix: string,
 ): AutocompleteItem[] | null {
-  const normalizedPrefix = normalizePrefix(prefix);
+  const normalizedPrefix = normalizePrefix(prefix)
 
   const items = Array.from(new Set(selectedPaths))
     .sort((left, right) => left.localeCompare(right))
@@ -56,7 +56,7 @@ export function getRemoveCompletions(
       value: path,
       label: path,
       description: 'active selection',
-    }));
+    }))
 
-  return items.length > 0 ? items : null;
+  return items.length > 0 ? items : null
 }

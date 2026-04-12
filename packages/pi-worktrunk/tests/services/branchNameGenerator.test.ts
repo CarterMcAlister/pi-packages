@@ -1,7 +1,7 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test'
 
-import { cmdCreate } from '../../src/cmds/cmdCreate.ts';
-import type { CommandDeps } from '../../src/types.ts';
+import { cmdCreate } from '../../src/cmds/cmdCreate.ts'
+import type { CommandDeps } from '../../src/types.ts'
 
 function createDeps(): CommandDeps {
   return {
@@ -21,22 +21,22 @@ function createDeps(): CommandDeps {
       positive: mock(),
       critical: mock(),
     } as unknown as CommandDeps['statusService'],
-  };
+  }
 }
 
 describe('branchNameGenerator retirement', () => {
   it('rejects --generate because Worktrunk is now the source of truth', async () => {
-    const notify = mock();
+    const notify = mock()
 
     await cmdCreate(
       '--generate feature-auth',
       { cwd: '/repo', hasUI: false, ui: { notify } } as never,
       createDeps(),
-    );
+    )
 
     expect(notify).toHaveBeenCalledWith(
       expect.stringContaining('no longer supports --generate or --name'),
       'error',
-    );
-  });
-});
+    )
+  })
+})

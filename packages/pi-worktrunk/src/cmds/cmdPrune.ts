@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent';
+import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
 
 export async function cmdPrune(
   _args: string,
@@ -7,5 +7,5 @@ export async function cmdPrune(
   ctx.ui.notify(
     '`/worktree prune` is deprecated in the Worktrunk-backed extension. Use Worktrunk-native cleanup flows like `wt remove` and `wt list` instead.',
     'warning',
-  );
+  )
 }

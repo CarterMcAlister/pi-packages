@@ -1,7 +1,7 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test'
 
-import { cmdSettings } from '../../src/cmds/cmdSettings.ts';
-import type { CommandDeps } from '../../src/types.ts';
+import { cmdSettings } from '../../src/cmds/cmdSettings.ts'
+import type { CommandDeps } from '../../src/types.ts'
 
 function createDeps(): CommandDeps {
   return {
@@ -23,22 +23,22 @@ function createDeps(): CommandDeps {
       positive: mock(),
       critical: mock(),
     } as unknown as CommandDeps['statusService'],
-  };
+  }
 }
 
 describe('legacy config migration behavior', () => {
   it('rejects extension-managed settings writes in favor of Worktrunk config', async () => {
-    const notify = mock();
+    const notify = mock()
 
     await cmdSettings(
       'worktreeRoot ~/.worktrees',
       { cwd: '/repo', hasUI: false, ui: { notify } } as never,
       createDeps(),
-    );
+    )
 
     expect(notify).toHaveBeenCalledWith(
       expect.stringContaining('read-only'),
       'error',
-    );
-  });
-});
+    )
+  })
+})

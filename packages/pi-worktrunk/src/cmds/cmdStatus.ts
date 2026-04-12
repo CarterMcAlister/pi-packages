@@ -1,12 +1,12 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent';
-import type { CommandDeps } from '../types.ts';
+import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
+import type { CommandDeps } from '../types.ts'
 
 function formatRelation(
   label: string,
   ahead?: number,
   behind?: number,
 ): string {
-  return `${label}: ahead ${ahead ?? 0}, behind ${behind ?? 0}`;
+  return `${label}: ahead ${ahead ?? 0}, behind ${behind ?? 0}`
 }
 
 export async function cmdStatus(
@@ -14,16 +14,16 @@ export async function cmdStatus(
   ctx: ExtensionCommandContext,
   deps: CommandDeps,
 ): Promise<void> {
-  deps.worktrunk.ensureAvailable(ctx.cwd);
+  deps.worktrunk.ensureAvailable(ctx.cwd)
 
   try {
-    const current = await deps.worktrunk.getCurrent(ctx.cwd);
+    const current = await deps.worktrunk.getCurrent(ctx.cwd)
     if (!current) {
       ctx.ui.notify(
         'Current worktree not found in `wt list --format=json` output',
         'error',
-      );
-      return;
+      )
+      return
     }
 
     const status = [
@@ -45,13 +45,13 @@ export async function cmdStatus(
       `Working tree: staged=${current.workingTree?.staged === true ? 'yes' : 'no'}, modified=${
         current.workingTree?.modified === true ? 'yes' : 'no'
       }, untracked=${current.workingTree?.untracked === true ? 'yes' : 'no'}`,
-    ];
+    ]
 
-    ctx.ui.notify(status.join('\n'), 'info');
+    ctx.ui.notify(status.join('\n'), 'info')
   } catch (error) {
     ctx.ui.notify(
       `Failed to load worktree status: ${error instanceof Error ? error.message : String(error)}`,
       'error',
-    );
+    )
   }
 }

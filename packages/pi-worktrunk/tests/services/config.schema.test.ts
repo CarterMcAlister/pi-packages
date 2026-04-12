@@ -1,12 +1,12 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
-import * as childProcess from 'node:child_process';
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
+import * as childProcess from 'node:child_process'
 
-import { listWorktrees, WorktrunkError } from '../../src/services/worktrunk.ts';
+import { listWorktrees, WorktrunkError } from '../../src/services/worktrunk.ts'
 
 describe('worktrunk list parsing', () => {
   beforeEach(() => {
-    mock.restore();
-  });
+    mock.restore()
+  })
 
   it('maps optional list fields from wt json output', async () => {
     spyOn(childProcess, 'spawnSync').mockReturnValue({
@@ -30,9 +30,9 @@ describe('worktrunk list parsing', () => {
         },
       ]),
       stderr: '',
-    } as never);
+    } as never)
 
-    const [entry] = await listWorktrees('/repo');
+    const [entry] = await listWorktrees('/repo')
 
     expect(entry).toEqual({
       branch: 'feature/auth',
@@ -57,16 +57,16 @@ describe('worktrunk list parsing', () => {
         renamed: undefined,
         deleted: undefined,
       },
-    });
-  });
+    })
+  })
 
   it('throws when wt list json is invalid', async () => {
     spyOn(childProcess, 'spawnSync').mockReturnValue({
       status: 0,
       stdout: '{not json}',
       stderr: '',
-    } as never);
+    } as never)
 
-    await expect(listWorktrees('/repo')).rejects.toThrow(WorktrunkError);
-  });
-});
+    await expect(listWorktrees('/repo')).rejects.toThrow(WorktrunkError)
+  })
+})

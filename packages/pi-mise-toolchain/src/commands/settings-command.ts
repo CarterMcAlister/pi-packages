@@ -1,17 +1,17 @@
 import {
   registerSettingsCommand,
   type SettingsSection,
-} from '@aliou/pi-utils-settings';
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
+} from '@aliou/pi-utils-settings'
+import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import type {
   BashSourceMode,
   FeatureMode,
   ResolvedExtensionConfig,
   ToolchainConfig,
-} from '../config';
-import { configLoader } from '../config';
+} from '../config'
+import { configLoader } from '../config'
 
-type FeatureKey = keyof ResolvedExtensionConfig['features'];
+type FeatureKey = keyof ResolvedExtensionConfig['features']
 
 const FEATURE_UI: Record<
   FeatureKey,
@@ -23,9 +23,9 @@ const FEATURE_UI: Record<
       'Inject GIT_EDITOR and GIT_SEQUENCE_EDITOR for non-interactive rebase (rewrite only)',
     modes: ['disabled', 'rewrite'],
   },
-};
+}
 
-const BASH_SOURCE_MODES: BashSourceMode[] = ['override-bash', 'composed-bash'];
+const BASH_SOURCE_MODES: BashSourceMode[] = ['override-bash', 'composed-bash']
 
 export function registerToolchainSettings(pi: ExtensionAPI): void {
   registerSettingsCommand<ToolchainConfig, ResolvedExtensionConfig>(pi, {
@@ -45,7 +45,7 @@ export function registerToolchainSettings(pi: ExtensionAPI): void {
           currentValue: tabConfig?.features?.[key] ?? resolved.features[key],
           values: FEATURE_UI[key].modes,
         }),
-      );
+      )
 
       return [
         {
@@ -66,7 +66,7 @@ export function registerToolchainSettings(pi: ExtensionAPI): void {
             },
           ],
         },
-      ];
+      ]
     },
-  });
+  })
 }

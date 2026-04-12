@@ -5,19 +5,19 @@
  * the rewriters. Only features with mode "block" register a blocker.
  */
 
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
-import type { ResolvedToolchainConfig } from '../config';
-import { setupPackageManagerBlocker } from './package-manager';
-import { setupPythonBlocker } from './python';
+import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
+import type { ResolvedToolchainConfig } from '../config'
+import { setupPackageManagerBlocker } from './package-manager'
+import { setupPythonBlocker } from './python'
 
 export function setupBlockers(
   pi: ExtensionAPI,
   config: ResolvedToolchainConfig,
 ): void {
   if (config.features.enforcePackageManager === 'block') {
-    setupPackageManagerBlocker(pi, config);
+    setupPackageManagerBlocker(pi, config)
   }
   if (config.features.rewritePython === 'block') {
-    setupPythonBlocker(pi);
+    setupPythonBlocker(pi)
   }
 }

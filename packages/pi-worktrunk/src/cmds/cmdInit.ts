@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent';
+import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
 
 const SETUP_GUIDE = [
   'Worktrunk setup',
@@ -21,11 +21,11 @@ const SETUP_GUIDE = [
   '  - .config/wt.toml',
   '',
   'Docs: https://worktrunk.dev/worktrunk/',
-].join('\n');
+].join('\n')
 
 export async function cmdInit(
   _args: string,
   ctx: ExtensionCommandContext,
 ): Promise<void> {
-  ctx.ui.notify(SETUP_GUIDE, 'info');
+  ctx.ui.notify(SETUP_GUIDE, 'info')
 }

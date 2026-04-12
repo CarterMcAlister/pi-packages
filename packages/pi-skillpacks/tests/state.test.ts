@@ -1,9 +1,9 @@
-import { expect, test } from 'bun:test';
-import { STATE_ENTRY_TYPE } from '../src/constants';
+import { expect, test } from 'bun:test'
+import { STATE_ENTRY_TYPE } from '../src/constants'
 import {
   createSkillpackState,
   restoreSelectedPathsFromEntries,
-} from '../src/state';
+} from '../src/state'
 
 test('createSkillpackState sorts and dedupes selected paths', () => {
   expect(
@@ -12,12 +12,12 @@ test('createSkillpackState sorts and dedupes selected paths', () => {
       'superpowers',
       'superpowers',
     ]),
-  ).toEqual({ selectedPaths: ['superpowers', 'superpowers/agent-browser'] });
-});
+  ).toEqual({ selectedPaths: ['superpowers', 'superpowers/agent-browser'] })
+})
 
 test('restoreSelectedPathsFromEntries returns an empty array when no state exists', () => {
-  expect(restoreSelectedPathsFromEntries([])).toEqual([]);
-});
+  expect(restoreSelectedPathsFromEntries([])).toEqual([])
+})
 
 test('restoreSelectedPathsFromEntries uses the latest valid state entry', () => {
   const entries = [
@@ -36,13 +36,13 @@ test('restoreSelectedPathsFromEntries uses the latest valid state entry', () => 
       customType: STATE_ENTRY_TYPE,
       data: { selectedPaths: ['design-tools', 'superpowers'] },
     },
-  ];
+  ]
 
   expect(restoreSelectedPathsFromEntries(entries)).toEqual([
     'design-tools',
     'superpowers',
-  ]);
-});
+  ])
+})
 
 test('restoreSelectedPathsFromEntries skips malformed newer entries', () => {
   const entries = [
@@ -56,7 +56,7 @@ test('restoreSelectedPathsFromEntries skips malformed newer entries', () => {
       customType: STATE_ENTRY_TYPE,
       data: { selectedPaths: [42] },
     },
-  ];
+  ]
 
-  expect(restoreSelectedPathsFromEntries(entries)).toEqual(['superpowers']);
-});
+  expect(restoreSelectedPathsFromEntries(entries)).toEqual(['superpowers'])
+})

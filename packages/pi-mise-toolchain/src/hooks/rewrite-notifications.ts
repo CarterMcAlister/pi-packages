@@ -1,19 +1,19 @@
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
-import type { ResolvedToolchainConfig } from '../config';
-import { analyzeRewrite } from '../rewriters';
-import { formatRewriteSourcePrefix } from '../utils/bash-composition';
+import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
+import type { ResolvedToolchainConfig } from '../config'
+import { analyzeRewrite } from '../rewriters'
+import { formatRewriteSourcePrefix } from '../utils/bash-composition'
 
 export function registerRewriteNotifications(
   pi: ExtensionAPI,
   config: ResolvedToolchainConfig,
 ): void {
-  if (!config.ui.showRewriteNotifications) return;
+  if (!config.ui.showRewriteNotifications) return
 
   pi.on('tool_call', async (event, ctx) => {
-    if (event.toolName !== 'bash') return;
+    if (event.toolName !== 'bash') return
 
-    const command = String(event.input.command ?? '');
-    if (!command) return;
+    const command = String(event.input.command ?? '')
+    if (!command) return
 
     const rewriteResult = analyzeRewrite(
       {
@@ -22,15 +22,15 @@ export function registerRewriteNotifications(
         env: process.env,
       },
       config,
-    );
+    )
 
-    const prefix = formatRewriteSourcePrefix(config.bash.sourceMode);
+    const prefix = formatRewriteSourcePrefix(config.bash.sourceMode)
     for (const notice of rewriteResult.notices) {
-      ctx.ui.notify(`${prefix} ${notice.message}`, 'warning');
+      ctx.ui.notify(`${prefix} ${notice.message}`, 'warning')
     }
 
-    return undefined;
-  });
+    return undefined
+  })
 }
 
 export function hasRewriteFeatures(config: ResolvedToolchainConfig): boolean {
@@ -38,5 +38,5 @@ export function hasRewriteFeatures(config: ResolvedToolchainConfig): boolean {
     config.features.enforcePackageManager === 'rewrite' ||
     config.features.rewritePython === 'rewrite' ||
     config.features.gitRebaseEditor === 'rewrite'
-  );
+  )
 }

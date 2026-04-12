@@ -167,6 +167,12 @@ If you were using `preventBrew`, `preventPython`, or `enforcePackageManager` in 
 
 The guardrails extension will continue to honor these features with a deprecation warning until they are removed in a future version.
 
+## Credits
+
+This package is a maintained fork of [`@aliou/pi-toolchain`](https://github.com/aliou/pi-toolchain).
+
+Credit to Aliou for the original project, design, and implementation this fork builds on.
+
 ## Development
 
 ```bash

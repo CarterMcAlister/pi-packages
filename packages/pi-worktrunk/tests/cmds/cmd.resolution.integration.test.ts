@@ -1,8 +1,8 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test'
 
-import { cmdCd } from '../../src/cmds/cmdCd.ts';
-import type { WorktrunkListEntry } from '../../src/services/worktrunk.ts';
-import type { CommandDeps } from '../../src/types.ts';
+import { cmdCd } from '../../src/cmds/cmdCd.ts'
+import type { WorktrunkListEntry } from '../../src/services/worktrunk.ts'
+import type { CommandDeps } from '../../src/types.ts'
 
 function createDeps(): CommandDeps {
   return {
@@ -34,21 +34,21 @@ function createDeps(): CommandDeps {
       positive: mock(),
       critical: mock(),
     } as unknown as CommandDeps['statusService'],
-  };
+  }
 }
 
 describe('cmdCd resolution integration', () => {
   it('prints the path for a matching basename-like ref', async () => {
-    const notify = mock();
+    const notify = mock()
     await cmdCd(
       'feature-auth',
       { cwd: '/repo', hasUI: false, ui: { notify } } as never,
       createDeps(),
-    );
+    )
 
     expect(notify).toHaveBeenCalledWith(
       'Worktree path: /repo.worktrees/feature-auth',
       'info',
-    );
-  });
-});
+    )
+  })
+})

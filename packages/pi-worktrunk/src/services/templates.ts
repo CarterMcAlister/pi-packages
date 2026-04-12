@@ -1,11 +1,11 @@
-import { homedir } from 'os';
+import { homedir } from 'os'
 
 export interface TemplateContext {
-  path: string;
-  name: string;
-  branch: string;
-  project: string;
-  mainWorktree: string;
+  path: string
+  name: string
+  branch: string
+  project: string
+  mainWorktree: string
 }
 
 export function expandTemplate(template: string, ctx: TemplateContext): string {
@@ -15,5 +15,5 @@ export function expandTemplate(template: string, ctx: TemplateContext): string {
     .replace(/\{\{branch\}\}/g, ctx.branch)
     .replace(/\{\{project\}\}/g, ctx.project)
     .replace(/\{\{mainWorktree\}\}/g, ctx.mainWorktree)
-    .replace(/^~/, homedir());
+    .replace(/^~/, homedir())
 }

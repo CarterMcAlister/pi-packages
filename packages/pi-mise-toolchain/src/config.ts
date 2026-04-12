@@ -1,16 +1,16 @@
-import { existsSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { dirname, resolve } from 'node:path';
-import { ConfigLoader, type Migration } from '@aliou/pi-utils-settings';
-import { DEFAULT_PROJECT_TOOLCHAIN_CONFIG } from './project-config';
-import { isValidBashSourceMode } from './utils/bash-source-mode';
+import { existsSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, resolve } from 'node:path'
+import { ConfigLoader, type Migration } from '@aliou/pi-utils-settings'
+import { DEFAULT_PROJECT_TOOLCHAIN_CONFIG } from './project-config'
+import { isValidBashSourceMode } from './utils/bash-source-mode'
 import {
   isMissingBashSourceMode,
   isV0,
   migrateMissingBashSourceMode,
   migrateV0,
   pendingWarnings,
-} from './utils/migration';
+} from './utils/migration'
 
 /**
  * Configuration schema for the toolchain extension.
@@ -26,69 +26,69 @@ import {
  * - "block": block matching commands via tool_call hook (bash tool not overridden)
  */
 
-export type FeatureMode = 'disabled' | 'rewrite' | 'block';
-export type BashSourceMode = 'override-bash' | 'composed-bash';
-export type PackageManager = 'bun' | 'pnpm' | 'npm';
+export type FeatureMode = 'disabled' | 'rewrite' | 'block'
+export type BashSourceMode = 'override-bash' | 'composed-bash'
+export type PackageManager = 'bun' | 'pnpm' | 'npm'
 
 export interface ToolchainConfig {
-  version?: string;
-  enabled?: boolean;
+  version?: string
+  enabled?: boolean
   features?: {
-    enforcePackageManager?: FeatureMode;
-    rewritePython?: FeatureMode;
-    gitRebaseEditor?: FeatureMode;
-  };
+    enforcePackageManager?: FeatureMode
+    rewritePython?: FeatureMode
+    gitRebaseEditor?: FeatureMode
+  }
   packageManager?: {
-    selected?: PackageManager;
-  };
+    selected?: PackageManager
+  }
   bash?: {
-    sourceMode?: BashSourceMode;
-  };
+    sourceMode?: BashSourceMode
+  }
   ui?: {
-    showRewriteNotifications?: boolean;
-  };
+    showRewriteNotifications?: boolean
+  }
 }
 
 export interface ProjectToolchainConfig {
-  sourcePath: string | null;
+  sourcePath: string | null
   features: {
-    enforcePackageManager: FeatureMode;
-    rewritePython: FeatureMode;
-  };
+    enforcePackageManager: FeatureMode
+    rewritePython: FeatureMode
+  }
   packageManager: {
-    selected: PackageManager | null;
-  };
+    selected: PackageManager | null
+  }
 }
 
 export interface ResolvedExtensionConfig {
-  enabled: boolean;
+  enabled: boolean
   features: {
-    gitRebaseEditor: FeatureMode;
-  };
+    gitRebaseEditor: FeatureMode
+  }
   bash: {
-    sourceMode: BashSourceMode;
-  };
+    sourceMode: BashSourceMode
+  }
   ui: {
-    showRewriteNotifications: boolean;
-  };
+    showRewriteNotifications: boolean
+  }
 }
 
 export interface ResolvedToolchainConfig {
-  enabled: boolean;
+  enabled: boolean
   features: {
-    enforcePackageManager: FeatureMode;
-    rewritePython: FeatureMode;
-    gitRebaseEditor: FeatureMode;
-  };
+    enforcePackageManager: FeatureMode
+    rewritePython: FeatureMode
+    gitRebaseEditor: FeatureMode
+  }
   packageManager: {
-    selected: PackageManager;
-  };
+    selected: PackageManager
+  }
   bash: {
-    sourceMode: BashSourceMode;
-  };
+    sourceMode: BashSourceMode
+  }
   ui: {
-    showRewriteNotifications: boolean;
-  };
+    showRewriteNotifications: boolean
+  }
 }
 
 export const DEFAULT_EXTENSION_CONFIG: ResolvedExtensionConfig = {
@@ -102,7 +102,7 @@ export const DEFAULT_EXTENSION_CONFIG: ResolvedExtensionConfig = {
   ui: {
     showRewriteNotifications: false,
   },
-};
+}
 
 export const DEFAULT_CONFIG: ResolvedToolchainConfig = {
   enabled: DEFAULT_EXTENSION_CONFIG.enabled,
@@ -123,13 +123,13 @@ export const DEFAULT_CONFIG: ResolvedToolchainConfig = {
     showRewriteNotifications:
       DEFAULT_EXTENSION_CONFIG.ui.showRewriteNotifications,
   },
-};
+}
 
 export const IGNORED_PROJECT_SETTINGS_WARNING =
-  '[toolchain] Ignoring legacy toolchain.json project settings for package-manager and Python rewrites. These settings now come from the nearest mise.toml.';
+  '[toolchain] Ignoring legacy toolchain.json project settings for package-manager and Python rewrites. These settings now come from the nearest mise.toml.'
 
-let hasQueuedIgnoredProjectSettingsWarning = false;
-let hasQueuedIgnoredLocalConfigWarning = false;
+let hasQueuedIgnoredProjectSettingsWarning = false
+let hasQueuedIgnoredLocalConfigWarning = false
 
 const migrations: Migration<ToolchainConfig>[] = [
   {
@@ -142,23 +142,23 @@ const migrations: Migration<ToolchainConfig>[] = [
     shouldRun: (config) => isMissingBashSourceMode(config),
     run: (config) => migrateMissingBashSourceMode(config),
   },
-];
+]
 
 function deepMerge(target: object, source: object): void {
-  const t = target as Record<string, unknown>;
-  const s = source as Record<string, unknown>;
+  const t = target as Record<string, unknown>
+  const s = source as Record<string, unknown>
 
   for (const key in s) {
-    if (s[key] === undefined) continue;
+    if (s[key] === undefined) continue
     if (
       typeof s[key] === 'object' &&
       !Array.isArray(s[key]) &&
       s[key] !== null
     ) {
-      if (!t[key] || typeof t[key] !== 'object') t[key] = {};
-      deepMerge(t[key] as object, s[key] as object);
+      if (!t[key] || typeof t[key] !== 'object') t[key] = {}
+      deepMerge(t[key] as object, s[key] as object)
     } else {
-      t[key] = s[key];
+      t[key] = s[key]
     }
   }
 }
@@ -166,15 +166,15 @@ function deepMerge(target: object, source: object): void {
 function mergeToolchainConfigs(
   ...configs: Array<ToolchainConfig | null | undefined>
 ): ToolchainConfig {
-  const merged: ToolchainConfig = {};
+  const merged: ToolchainConfig = {}
 
   for (const config of configs) {
     if (config) {
-      deepMerge(merged, config);
+      deepMerge(merged, config)
     }
   }
 
-  return merged;
+  return merged
 }
 
 export function getIgnoredLegacyProjectSettingsWarning(
@@ -183,55 +183,55 @@ export function getIgnoredLegacyProjectSettingsWarning(
   const hasLegacyProjectSettings =
     config?.features?.enforcePackageManager !== undefined ||
     config?.features?.rewritePython !== undefined ||
-    config?.packageManager?.selected !== undefined;
+    config?.packageManager?.selected !== undefined
 
-  return hasLegacyProjectSettings ? IGNORED_PROJECT_SETTINGS_WARNING : null;
+  return hasLegacyProjectSettings ? IGNORED_PROJECT_SETTINGS_WARNING : null
 }
 
 function queueIgnoredLegacyProjectSettingsWarning(
   config: ToolchainConfig | null | undefined,
 ): void {
-  if (hasQueuedIgnoredProjectSettingsWarning) return;
+  if (hasQueuedIgnoredProjectSettingsWarning) return
 
-  const warning = getIgnoredLegacyProjectSettingsWarning(config);
-  if (!warning) return;
+  const warning = getIgnoredLegacyProjectSettingsWarning(config)
+  if (!warning) return
 
-  pendingWarnings.push(warning);
-  hasQueuedIgnoredProjectSettingsWarning = true;
+  pendingWarnings.push(warning)
+  hasQueuedIgnoredProjectSettingsWarning = true
 }
 
 export function findLegacyLocalConfigPath(
   startDir = process.cwd(),
 ): string | null {
-  let dir = startDir;
-  const home = homedir();
+  let dir = startDir
+  const home = homedir()
 
   while (true) {
-    if (dir === home) return null;
+    if (dir === home) return null
 
-    const candidate = resolve(dir, '.pi/extensions/toolchain.json');
+    const candidate = resolve(dir, '.pi/extensions/toolchain.json')
     if (existsSync(candidate) && statSync(candidate).isFile()) {
-      return candidate;
+      return candidate
     }
 
-    const parent = dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
+    const parent = dirname(dir)
+    if (parent === dir) return null
+    dir = parent
   }
 }
 
 export function queueIgnoredLegacyLocalConfigWarning(
   startDir = process.cwd(),
 ): void {
-  if (hasQueuedIgnoredLocalConfigWarning) return;
+  if (hasQueuedIgnoredLocalConfigWarning) return
 
-  const path = findLegacyLocalConfigPath(startDir);
-  if (!path) return;
+  const path = findLegacyLocalConfigPath(startDir)
+  if (!path) return
 
   pendingWarnings.push(
     `[toolchain] Ignoring legacy project config at ${path}. Project package-manager and Python rewrites now come from the nearest mise.toml.`,
-  );
-  hasQueuedIgnoredLocalConfigWarning = true;
+  )
+  hasQueuedIgnoredLocalConfigWarning = true
 }
 
 function validateResolvedExtensionConfig(
@@ -240,10 +240,10 @@ function validateResolvedExtensionConfig(
   if (!isValidBashSourceMode(config.bash.sourceMode)) {
     throw new Error(
       '[toolchain] Invalid config: bash.sourceMode must be "override-bash" or "composed-bash"',
-    );
+    )
   }
 
-  return config;
+  return config
 }
 
 function validateResolvedConfig(
@@ -256,9 +256,9 @@ function validateResolvedConfig(
     },
     bash: config.bash,
     ui: config.ui,
-  });
+  })
 
-  return config;
+  return config
 }
 
 export function resolveExtensionConfig(
@@ -280,7 +280,7 @@ export function resolveExtensionConfig(
         config?.ui?.showRewriteNotifications ??
         DEFAULT_EXTENSION_CONFIG.ui.showRewriteNotifications,
     },
-  });
+  })
 }
 
 export function resolveRuntimeConfig(
@@ -301,14 +301,14 @@ export function resolveRuntimeConfig(
     },
     bash: extensionConfig.bash,
     ui: extensionConfig.ui,
-  });
+  })
 }
 
 /** @deprecated Use resolveExtensionConfig for JSON-backed settings or resolveRuntimeConfig for final runtime config. */
 export function resolveToolchainConfig(
   config: ToolchainConfig | null | undefined,
 ): ResolvedExtensionConfig {
-  return resolveExtensionConfig(config);
+  return resolveExtensionConfig(config)
 }
 
 export const configLoader = new ConfigLoader<
@@ -318,8 +318,8 @@ export const configLoader = new ConfigLoader<
   scopes: ['global', 'memory'],
   migrations,
   afterMerge: (_resolved, global, _local, memory) => {
-    const merged = mergeToolchainConfigs(global, memory);
-    queueIgnoredLegacyProjectSettingsWarning(merged);
-    return resolveExtensionConfig(merged);
+    const merged = mergeToolchainConfigs(global, memory)
+    queueIgnoredLegacyProjectSettingsWarning(merged)
+    return resolveExtensionConfig(merged)
   },
-});
+})

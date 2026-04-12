@@ -161,6 +161,12 @@ If you used those features before, migrate them to Worktrunk config and hooks.
 - Pi keeps the `/worktree` command surface, but Worktrunk is now the source of truth.
 - For directory switching in your shell, Worktrunk shell integration is still required.
 
+## Credits
+
+This package is a maintained fork of [`@zenobius/pi-worktrees`](https://github.com/zenobi-us/pi-worktrees).
+
+Credit to Zenobius for the original project and foundation this fork builds on.
+
 ## Development
 
 ```bash

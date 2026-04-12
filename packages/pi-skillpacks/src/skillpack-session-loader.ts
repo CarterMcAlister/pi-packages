@@ -1,10 +1,10 @@
-import type { Stats } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import type { Stats } from 'node:fs'
+import { stat } from 'node:fs/promises'
 import type {
   ExtensionAPI,
   ExtensionContext,
   Theme,
-} from '@mariozechner/pi-coding-agent';
+} from '@mariozechner/pi-coding-agent'
 import {
   type AutocompleteItem,
   type Component,
@@ -13,7 +13,7 @@ import {
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
-} from '@mariozechner/pi-tui';
+} from '@mariozechner/pi-tui'
 import {
   countActiveSkillsForItem,
   getDescendantSkills,
@@ -22,41 +22,41 @@ import {
   loadSkillpackBrowserItems,
   type SkillpackBrowserItem,
   type SkillpackBrowserStatus,
-} from './browser';
-import { getAddCompletions, getRemoveCompletions } from './completions';
+} from './browser'
+import { getAddCompletions, getRemoveCompletions } from './completions'
 import {
   ADD_COMMAND,
   getDefaultSkillpackRoot,
   REMOVE_COMMAND,
   SKILLPACKS_COMMAND,
   STATE_ENTRY_TYPE,
-} from './constants';
+} from './constants'
 import {
   discoverSkillEntryPoints,
   resolveSelectedSkillEntryPoints,
-} from './discovery';
-import { normalizeSkillpackPath, resolveSkillpackDirectory } from './paths';
+} from './discovery'
+import { normalizeSkillpackPath, resolveSkillpackDirectory } from './paths'
 import {
   createSkillpackState,
   restoreSelectedPathsFromEntries,
   type SessionEntryLike,
-} from './state';
+} from './state'
 
 interface SkillpackSessionLoaderOptions {
-  rootDir?: string;
+  rootDir?: string
 }
 
 function pluralize(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
 
 function padVisible(text: string, width: number): string {
-  const padding = Math.max(0, width - visibleWidth(text));
-  return text + ' '.repeat(padding);
+  const padding = Math.max(0, width - visibleWidth(text))
+  return text + ' '.repeat(padding)
 }
 
 function isPrintableCharacter(data: string): boolean {
-  return data.length === 1 && data >= ' ' && data !== '\u007f';
+  return data.length === 1 && data >= ' ' && data !== '\u007f'
 }
 
 function formatStatusMarker(
@@ -65,13 +65,13 @@ function formatStatusMarker(
 ): string {
   switch (status) {
     case 'explicit':
-      return theme.fg('success', '●');
+      return theme.fg('success', '●')
     case 'active':
-      return theme.fg('accent', '◉');
+      return theme.fg('accent', '◉')
     case 'partial':
-      return theme.fg('warning', '◌');
+      return theme.fg('warning', '◌')
     default:
-      return theme.fg('dim', '○');
+      return theme.fg('dim', '○')
   }
 }
 
@@ -81,60 +81,60 @@ function formatStatusText(
 ): string {
   switch (status) {
     case 'explicit':
-      return 'Explicitly selected';
+      return 'Explicitly selected'
     case 'active':
       return item.kind === 'skill'
         ? 'Active via selected skill pack'
-        : 'All descendant skills are active';
+        : 'All descendant skills are active'
     case 'partial':
-      return 'Some descendant skills are active';
+      return 'Some descendant skills are active'
     default:
-      return 'Inactive';
+      return 'Inactive'
   }
 }
 
 function wrapBlock(text: string, width: number, maxLines?: number): string[] {
-  if (width <= 0) return [];
+  if (width <= 0) return []
 
-  const wrapped: string[] = [];
-  const lines = text.split('\n');
+  const wrapped: string[] = []
+  const lines = text.split('\n')
 
   for (const line of lines) {
     if (line.length === 0) {
-      wrapped.push('');
+      wrapped.push('')
     } else {
-      wrapped.push(...wrapTextWithAnsi(line, width));
+      wrapped.push(...wrapTextWithAnsi(line, width))
     }
 
     if (maxLines !== undefined && wrapped.length >= maxLines) {
-      return wrapped.slice(0, maxLines);
+      return wrapped.slice(0, maxLines)
     }
   }
 
-  return wrapped;
+  return wrapped
 }
 
 function sameSelections(current: Set<string>, next: string[]): boolean {
   if (current.size !== next.length) {
-    return false;
+    return false
   }
 
-  const nextSet = new Set(next);
+  const nextSet = new Set(next)
   for (const value of current) {
     if (!nextSet.has(value)) {
-      return false;
+      return false
     }
   }
 
-  return true;
+  return true
 }
 
 class SkillpacksDialog implements Component {
-  private query: string;
-  private filteredItems: SkillpackBrowserItem[];
-  private selectedIndex = 0;
-  private readonly maxVisibleItems = 18;
-  private readonly collapsedPaths = new Set<string>();
+  private query: string
+  private filteredItems: SkillpackBrowserItem[]
+  private selectedIndex = 0
+  private readonly maxVisibleItems = 18
+  private readonly collapsedPaths = new Set<string>()
 
   constructor(
     private readonly items: SkillpackBrowserItem[],
@@ -144,155 +144,155 @@ class SkillpacksDialog implements Component {
     private readonly done: (selectedPaths: string[] | null) => void,
     initialQuery = '',
   ) {
-    this.query = initialQuery;
+    this.query = initialQuery
     this.filteredItems = getVisibleSkillpackBrowserItems(
       this.items,
       this.query,
       this.collapsedPaths,
-    );
+    )
   }
 
   private getSelectedItem(): SkillpackBrowserItem | undefined {
-    return this.filteredItems[this.selectedIndex];
+    return this.filteredItems[this.selectedIndex]
   }
 
   private isCollapsed(item: SkillpackBrowserItem): boolean {
-    return item.kind === 'group' && this.collapsedPaths.has(item.value);
+    return item.kind === 'group' && this.collapsedPaths.has(item.value)
   }
 
   private setSelectionByValue(value: string): void {
     const nextIndex = this.filteredItems.findIndex(
       (item) => item.value === value,
-    );
+    )
     if (nextIndex !== -1) {
-      this.selectedIndex = nextIndex;
-      return;
+      this.selectedIndex = nextIndex
+      return
     }
 
     this.selectedIndex = Math.min(
       this.selectedIndex,
       Math.max(0, this.filteredItems.length - 1),
-    );
+    )
   }
 
   private refreshFilter(): void {
-    const previousValue = this.getSelectedItem()?.value;
+    const previousValue = this.getSelectedItem()?.value
     this.filteredItems = getVisibleSkillpackBrowserItems(
       this.items,
       this.query,
       this.collapsedPaths,
-    );
+    )
 
     if (this.filteredItems.length === 0) {
-      this.selectedIndex = 0;
-      return;
+      this.selectedIndex = 0
+      return
     }
 
     if (previousValue) {
-      this.setSelectionByValue(previousValue);
-      return;
+      this.setSelectionByValue(previousValue)
+      return
     }
 
     this.selectedIndex = Math.min(
       this.selectedIndex,
       this.filteredItems.length - 1,
-    );
+    )
   }
 
   private toggleSelectedItem(): void {
-    const item = this.getSelectedItem();
-    if (!item) return;
+    const item = this.getSelectedItem()
+    if (!item) return
 
     if (this.pendingSelectedPaths.has(item.value)) {
-      this.pendingSelectedPaths.delete(item.value);
+      this.pendingSelectedPaths.delete(item.value)
     } else {
-      this.pendingSelectedPaths.add(item.value);
+      this.pendingSelectedPaths.add(item.value)
     }
   }
 
   private findNearestGroupAncestor(
     item: SkillpackBrowserItem,
   ): SkillpackBrowserItem | undefined {
-    const parts = item.value.split('/');
+    const parts = item.value.split('/')
 
     for (let index = parts.length - 1; index > 0; index -= 1) {
-      const ancestorPath = parts.slice(0, index).join('/');
+      const ancestorPath = parts.slice(0, index).join('/')
       const ancestor = this.items.find(
         (candidate) =>
           candidate.kind === 'group' && candidate.value === ancestorPath,
-      );
+      )
       if (ancestor) {
-        return ancestor;
+        return ancestor
       }
     }
 
-    return undefined;
+    return undefined
   }
 
   private collapseGroup(item: SkillpackBrowserItem): void {
-    if (item.kind !== 'group') return;
-    this.collapsedPaths.add(item.value);
-    this.refreshFilter();
-    this.setSelectionByValue(item.value);
+    if (item.kind !== 'group') return
+    this.collapsedPaths.add(item.value)
+    this.refreshFilter()
+    this.setSelectionByValue(item.value)
   }
 
   private expandGroup(item: SkillpackBrowserItem): void {
-    if (item.kind !== 'group') return;
-    this.collapsedPaths.delete(item.value);
-    this.refreshFilter();
-    this.setSelectionByValue(item.value);
+    if (item.kind !== 'group') return
+    this.collapsedPaths.delete(item.value)
+    this.refreshFilter()
+    this.setSelectionByValue(item.value)
   }
 
   private collapseSelectedSection(): void {
-    const item = this.getSelectedItem();
-    if (!item) return;
+    const item = this.getSelectedItem()
+    if (!item) return
 
     if (item.kind === 'group') {
       if (!this.isCollapsed(item)) {
-        this.collapseGroup(item);
+        this.collapseGroup(item)
       }
-      return;
+      return
     }
 
-    const ancestor = this.findNearestGroupAncestor(item);
+    const ancestor = this.findNearestGroupAncestor(item)
     if (ancestor) {
-      this.collapseGroup(ancestor);
+      this.collapseGroup(ancestor)
     }
   }
 
   private expandSelectedSection(): void {
-    const item = this.getSelectedItem();
-    if (!item) return;
+    const item = this.getSelectedItem()
+    if (!item) return
 
     if (item.kind === 'group' && this.isCollapsed(item)) {
-      this.expandGroup(item);
-      return;
+      this.expandGroup(item)
+      return
     }
 
-    const ancestor = this.findNearestGroupAncestor(item);
+    const ancestor = this.findNearestGroupAncestor(item)
     if (ancestor && this.isCollapsed(ancestor)) {
-      this.expandGroup(ancestor);
+      this.expandGroup(ancestor)
     }
   }
 
   private getWindowRange(): { start: number; end: number } {
     if (this.filteredItems.length <= this.maxVisibleItems) {
-      return { start: 0, end: this.filteredItems.length };
+      return { start: 0, end: this.filteredItems.length }
     }
 
-    const halfWindow = Math.floor(this.maxVisibleItems / 2);
+    const halfWindow = Math.floor(this.maxVisibleItems / 2)
     const maxStart = Math.max(
       0,
       this.filteredItems.length - this.maxVisibleItems,
-    );
+    )
     const start = Math.max(
       0,
       Math.min(this.selectedIndex - halfWindow, maxStart),
-    );
+    )
     return {
       start,
       end: Math.min(this.filteredItems.length, start + this.maxVisibleItems),
-    };
+    }
   }
 
   private renderListLine(
@@ -304,40 +304,38 @@ class SkillpacksDialog implements Component {
       this.items,
       this.pendingSelectedPaths,
       item,
-    );
-    const marker = formatStatusMarker(this.theme, status);
-    const indent = '  '.repeat(item.depth);
-    const prefix = isSelected ? this.theme.fg('accent', '›') : ' ';
+    )
+    const marker = formatStatusMarker(this.theme, status)
+    const indent = '  '.repeat(item.depth)
+    const prefix = isSelected ? this.theme.fg('accent', '›') : ' '
     const disclosure =
       item.kind === 'group'
         ? this.theme.fg('dim', this.isCollapsed(item) ? '▸' : '▾')
-        : ' ';
+        : ' '
     const suffix =
-      item.kind === 'group'
-        ? this.theme.fg('dim', ` (${item.skillCount})`)
-        : '';
-    const baseText = `${prefix} ${indent}${disclosure} ${marker} ${item.title}${suffix}`;
-    const truncated = truncateToWidth(baseText, width);
+      item.kind === 'group' ? this.theme.fg('dim', ` (${item.skillCount})`) : ''
+    const baseText = `${prefix} ${indent}${disclosure} ${marker} ${item.title}${suffix}`
+    const truncated = truncateToWidth(baseText, width)
 
     if (!isSelected) {
-      return truncated;
+      return truncated
     }
 
-    return this.theme.bg('selectedBg', padVisible(truncated, width));
+    return this.theme.bg('selectedBg', padVisible(truncated, width))
   }
 
   private renderLeftPane(width: number): string[] {
-    const lines: string[] = [];
+    const lines: string[] = []
     const searchValue =
-      this.query.length > 0 ? this.query : this.theme.fg('dim', '_');
+      this.query.length > 0 ? this.query : this.theme.fg('dim', '_')
 
     lines.push(
       truncateToWidth(
         `${this.theme.fg('muted', 'Search:')} ${searchValue}`,
         width,
       ),
-    );
-    lines.push('');
+    )
+    lines.push('')
     lines.push(
       truncateToWidth(
         this.theme.fg(
@@ -348,25 +346,25 @@ class SkillpacksDialog implements Component {
         ),
         width,
       ),
-    );
+    )
 
     if (this.filteredItems.length === 0) {
-      lines.push('');
+      lines.push('')
       lines.push(
         truncateToWidth(this.theme.fg('warning', 'No matches found.'), width),
-      );
+      )
     } else {
-      const { start, end } = this.getWindowRange();
+      const { start, end } = this.getWindowRange()
       for (let index = start; index < end; index += 1) {
-        const item = this.filteredItems[index];
+        const item = this.filteredItems[index]
 
         if (!item) {
-          continue;
+          continue
         }
 
         lines.push(
           this.renderListLine(item, width, index === this.selectedIndex),
-        );
+        )
       }
 
       if (this.filteredItems.length > this.maxVisibleItems) {
@@ -378,11 +376,11 @@ class SkillpacksDialog implements Component {
             ),
             width,
           ),
-        );
+        )
       }
     }
 
-    lines.push('');
+    lines.push('')
     lines.push(
       truncateToWidth(
         this.theme.fg(
@@ -391,7 +389,7 @@ class SkillpacksDialog implements Component {
         ),
         width,
       ),
-    );
+    )
     lines.push(
       truncateToWidth(
         this.theme.fg(
@@ -400,153 +398,153 @@ class SkillpacksDialog implements Component {
         ),
         width,
       ),
-    );
+    )
     lines.push(
       truncateToWidth(this.theme.fg('dim', 'Esc apply • Ctrl+C cancel'), width),
-    );
+    )
 
-    return lines;
+    return lines
   }
 
   private renderGroupDetails(
     item: SkillpackBrowserItem,
     width: number,
   ): string[] {
-    const lines: string[] = [];
+    const lines: string[] = []
     const children = getDescendantSkills(this.items, item).filter(
       (skill) => skill.value !== item.value,
-    );
+    )
 
-    lines.push(...wrapBlock(`Description: ${item.description}`, width));
-    lines.push('');
-    lines.push(...wrapBlock(`Skills: ${children.length} total`, width));
-    lines.push('');
-    lines.push(this.theme.fg('muted', 'Contained skills:'));
+    lines.push(...wrapBlock(`Description: ${item.description}`, width))
+    lines.push('')
+    lines.push(...wrapBlock(`Skills: ${children.length} total`, width))
+    lines.push('')
+    lines.push(this.theme.fg('muted', 'Contained skills:'))
 
     for (const child of children.slice(0, 12)) {
       const status = getSkillpackBrowserStatus(
         this.items,
         this.pendingSelectedPaths,
         child,
-      );
+      )
       lines.push(
         truncateToWidth(
           `${formatStatusMarker(this.theme, status)} ${child.title} ${this.theme.fg('dim', `(${child.value})`)}`,
           width,
         ),
-      );
+      )
     }
 
     if (children.length > 12) {
-      lines.push(this.theme.fg('dim', `…and ${children.length - 12} more`));
+      lines.push(this.theme.fg('dim', `…and ${children.length - 12} more`))
     }
 
-    return lines;
+    return lines
   }
 
   private renderSkillDetails(
     item: SkillpackBrowserItem,
     width: number,
   ): string[] {
-    const lines: string[] = [];
+    const lines: string[] = []
 
-    lines.push(...wrapBlock(`Description: ${item.description}`, width));
+    lines.push(...wrapBlock(`Description: ${item.description}`, width))
 
     if (item.skillFilePath) {
-      lines.push('');
-      lines.push(this.theme.fg('muted', 'Origin:'));
-      lines.push(...wrapBlock(item.skillFilePath, width));
+      lines.push('')
+      lines.push(this.theme.fg('muted', 'Origin:'))
+      lines.push(...wrapBlock(item.skillFilePath, width))
     }
 
     if (item.body.trim()) {
-      const previewLines = wrapBlock(item.body.trim(), width, 18);
-      const originalLineCount = item.body.trim().split('\n').length;
+      const previewLines = wrapBlock(item.body.trim(), width, 18)
+      const originalLineCount = item.body.trim().split('\n').length
 
-      lines.push('');
-      lines.push(this.theme.fg('muted', 'Instruction:'));
-      lines.push(...previewLines);
+      lines.push('')
+      lines.push(this.theme.fg('muted', 'Instruction:'))
+      lines.push(...previewLines)
 
       if (originalLineCount > 18) {
-        lines.push(this.theme.fg('dim', `(truncated at line 18)`));
+        lines.push(this.theme.fg('dim', `(truncated at line 18)`))
       }
     }
 
-    return lines;
+    return lines
   }
 
   private renderRightPane(width: number): string[] {
-    const item = this.getSelectedItem();
+    const item = this.getSelectedItem()
 
     if (!item) {
       return [
         this.theme.fg('warning', 'No skill packs match the current search.'),
-      ];
+      ]
     }
 
-    const lines: string[] = [];
+    const lines: string[] = []
     const status = getSkillpackBrowserStatus(
       this.items,
       this.pendingSelectedPaths,
       item,
-    );
+    )
     const activeSkillCount = countActiveSkillsForItem(
       this.items,
       this.pendingSelectedPaths,
       item,
-    );
+    )
 
     lines.push(
       truncateToWidth(
         this.theme.fg('accent', this.theme.bold(item.title)),
         width,
       ),
-    );
-    lines.push('');
+    )
+    lines.push('')
     lines.push(
       truncateToWidth(
         `Type: ${this.theme.fg('accent', item.kind === 'group' ? 'skillpack' : 'skill')}`,
         width,
       ),
-    );
-    lines.push(truncateToWidth(`Path: ${item.value}`, width));
+    )
+    lines.push(truncateToWidth(`Path: ${item.value}`, width))
     lines.push(
       truncateToWidth(
         `Status: ${formatStatusMarker(this.theme, status)} ${formatStatusText(status, item)}`,
         width,
       ),
-    );
+    )
     lines.push(
       truncateToWidth(
         `Active skills: ${activeSkillCount}/${item.skillCount}`,
         width,
       ),
-    );
+    )
     if (item.kind === 'group') {
       lines.push(
         truncateToWidth(
           `Section: ${this.theme.fg('accent', this.isCollapsed(item) ? 'collapsed' : 'expanded')}`,
           width,
         ),
-      );
+      )
     }
-    lines.push('');
+    lines.push('')
 
     if (item.kind === 'group') {
-      lines.push(...this.renderGroupDetails(item, width));
+      lines.push(...this.renderGroupDetails(item, width))
     } else {
-      lines.push(...this.renderSkillDetails(item, width));
+      lines.push(...this.renderSkillDetails(item, width))
     }
 
-    return lines;
+    return lines
   }
 
   handleInput(data: string): void {
     if (matchesKey(data, Key.up)) {
       if (this.filteredItems.length > 0) {
-        this.selectedIndex = Math.max(0, this.selectedIndex - 1);
-        this.requestRender();
+        this.selectedIndex = Math.max(0, this.selectedIndex - 1)
+        this.requestRender()
       }
-      return;
+      return
     }
 
     if (matchesKey(data, Key.down)) {
@@ -554,41 +552,41 @@ class SkillpacksDialog implements Component {
         this.selectedIndex = Math.min(
           this.filteredItems.length - 1,
           this.selectedIndex + 1,
-        );
-        this.requestRender();
+        )
+        this.requestRender()
       }
-      return;
+      return
     }
 
     if (matchesKey(data, Key.left)) {
-      this.collapseSelectedSection();
-      this.requestRender();
-      return;
+      this.collapseSelectedSection()
+      this.requestRender()
+      return
     }
 
     if (matchesKey(data, Key.right)) {
-      this.expandSelectedSection();
-      this.requestRender();
-      return;
+      this.expandSelectedSection()
+      this.requestRender()
+      return
     }
 
     if (matchesKey(data, Key.space)) {
-      this.toggleSelectedItem();
-      this.requestRender();
-      return;
+      this.toggleSelectedItem()
+      this.requestRender()
+      return
     }
 
     if (matchesKey(data, Key.enter)) {
-      const item = this.getSelectedItem();
+      const item = this.getSelectedItem()
       if (item?.kind === 'group') {
         if (this.isCollapsed(item)) {
-          this.expandGroup(item);
+          this.expandGroup(item)
         } else {
-          this.collapseGroup(item);
+          this.collapseGroup(item)
         }
-        this.requestRender();
+        this.requestRender()
       }
-      return;
+      return
     }
 
     if (matchesKey(data, Key.escape)) {
@@ -596,79 +594,79 @@ class SkillpacksDialog implements Component {
         Array.from(this.pendingSelectedPaths).sort((left, right) =>
           left.localeCompare(right),
         ),
-      );
-      return;
+      )
+      return
     }
 
     if (matchesKey(data, Key.ctrl('c'))) {
-      this.done(null);
-      return;
+      this.done(null)
+      return
     }
 
     if (matchesKey(data, Key.backspace)) {
       if (this.query.length > 0) {
-        this.query = this.query.slice(0, -1);
-        this.refreshFilter();
-        this.requestRender();
+        this.query = this.query.slice(0, -1)
+        this.refreshFilter()
+        this.requestRender()
       }
-      return;
+      return
     }
 
     if (matchesKey(data, Key.ctrl('u'))) {
       if (this.query.length > 0) {
-        this.query = '';
-        this.refreshFilter();
-        this.requestRender();
+        this.query = ''
+        this.refreshFilter()
+        this.requestRender()
       }
-      return;
+      return
     }
 
     if (isPrintableCharacter(data) && data !== ' ') {
-      this.query += data;
-      this.refreshFilter();
-      this.requestRender();
+      this.query += data
+      this.refreshFilter()
+      this.requestRender()
     }
   }
 
   render(width: number): string[] {
     if (width < 72) {
-      const paneWidth = Math.max(1, width);
+      const paneWidth = Math.max(1, width)
       const leftLines = this.renderLeftPane(paneWidth).map((line) =>
         truncateToWidth(line, paneWidth),
-      );
+      )
       const rightLines = this.renderRightPane(paneWidth).map((line) =>
         truncateToWidth(line, paneWidth),
-      );
+      )
       const divider = truncateToWidth(
         this.theme.fg('border', '─'.repeat(Math.max(1, paneWidth))),
         paneWidth,
-      );
-      return [...leftLines, '', divider, ...rightLines];
+      )
+      return [...leftLines, '', divider, ...rightLines]
     }
 
-    const gutter = this.theme.fg('border', ' │ ');
-    const gutterWidth = visibleWidth(gutter);
-    const availableWidth = Math.max(1, width - gutterWidth);
+    const gutter = this.theme.fg('border', ' │ ')
+    const gutterWidth = visibleWidth(gutter)
+    const availableWidth = Math.max(1, width - gutterWidth)
     const leftWidth = Math.max(
       24,
       Math.min(58, Math.floor(availableWidth * 0.42)),
-    );
-    const rightWidth = Math.max(1, width - leftWidth - gutterWidth);
-    const leftLines = this.renderLeftPane(leftWidth);
-    const rightLines = this.renderRightPane(rightWidth);
-    const lineCount = Math.max(leftLines.length, rightLines.length);
-    const lines: string[] = [];
+    )
+    const rightWidth = Math.max(1, width - leftWidth - gutterWidth)
+    const leftLines = this.renderLeftPane(leftWidth)
+    const rightLines = this.renderRightPane(rightWidth)
+    const lineCount = Math.max(leftLines.length, rightLines.length)
+    const lines: string[] = []
 
     for (let index = 0; index < lineCount; index += 1) {
       const left = padVisible(
         truncateToWidth(leftLines[index] ?? '', leftWidth),
         leftWidth,
-      );
-      const right = truncateToWidth(rightLines[index] ?? '', rightWidth);
-      lines.push(truncateToWidth(`${left}${gutter}${right}`, width));
+      )
+      const right = truncateToWidth(rightLines[index] ?? '', rightWidth)
+      lines.push(truncateToWidth(`${left}${gutter}${right}`, width))
     }
 
-    return lines;
+    return lines
   }
 
   invalidate(): void {}
@@ -677,69 +675,69 @@ class SkillpacksDialog implements Component {
 export function createSkillpackSessionLoader(
   options: SkillpackSessionLoaderOptions = {},
 ) {
-  const rootDir = options.rootDir ?? getDefaultSkillpackRoot();
+  const rootDir = options.rootDir ?? getDefaultSkillpackRoot()
 
   return function skillpackSessionLoader(pi: ExtensionAPI) {
-    let selectedPaths = new Set<string>();
+    let selectedPaths = new Set<string>()
 
     function refreshSelectedPaths(ctx: ExtensionContext) {
       selectedPaths = new Set(
         restoreSelectedPathsFromEntries(
           ctx.sessionManager.getBranch() as SessionEntryLike[],
         ),
-      );
+      )
     }
 
     function persistSelectedPaths() {
-      pi.appendEntry(STATE_ENTRY_TYPE, createSkillpackState(selectedPaths));
+      pi.appendEntry(STATE_ENTRY_TYPE, createSkillpackState(selectedPaths))
     }
 
     async function ensureExistingDirectory(rawInput: string) {
-      const resolved = resolveSkillpackDirectory(rootDir, rawInput);
+      const resolved = resolveSkillpackDirectory(rootDir, rawInput)
 
-      let stats: Stats;
+      let stats: Stats
 
       try {
-        stats = await stat(resolved.absolutePath);
+        stats = await stat(resolved.absolutePath)
       } catch (error) {
-        const errno = error as NodeJS.ErrnoException;
+        const errno = error as NodeJS.ErrnoException
 
         if (errno.code === 'ENOENT') {
           throw new Error(
             `Skill pack "${resolved.logicalPath}" does not exist.`,
-          );
+          )
         }
 
-        throw error;
+        throw error
       }
 
       if (!stats.isDirectory()) {
         throw new Error(
           `Skill pack "${resolved.logicalPath}" is not a directory.`,
-        );
+        )
       }
 
-      return resolved;
+      return resolved
     }
 
     pi.on('session_start', async (_event, ctx) => {
-      refreshSelectedPaths(ctx);
-    });
+      refreshSelectedPaths(ctx)
+    })
 
     pi.on('session_tree', async (_event, ctx) => {
-      refreshSelectedPaths(ctx);
-    });
+      refreshSelectedPaths(ctx)
+    })
 
     pi.on('resources_discover', async (_event, ctx) => {
-      refreshSelectedPaths(ctx);
+      refreshSelectedPaths(ctx)
 
       const skillPaths = await resolveSelectedSkillEntryPoints(
         rootDir,
         selectedPaths,
-      );
+      )
 
-      return skillPaths.length > 0 ? { skillPaths } : undefined;
-    });
+      return skillPaths.length > 0 ? { skillPaths } : undefined
+    })
 
     pi.registerCommand(ADD_COMMAND, {
       description: 'Load a skill pack into the current session',
@@ -748,99 +746,97 @@ export function createSkillpackSessionLoader(
           | AutocompleteItem[]
           | null) as (argumentPrefix: string) => AutocompleteItem[] | null,
       handler: async (args, ctx) => {
-        const rawPath = args.trim();
+        const rawPath = args.trim()
 
         if (!rawPath) {
-          ctx.ui.notify(`Usage: /${ADD_COMMAND} <path>`, 'warning');
-          return;
+          ctx.ui.notify(`Usage: /${ADD_COMMAND} <path>`, 'warning')
+          return
         }
 
         try {
-          refreshSelectedPaths(ctx);
+          refreshSelectedPaths(ctx)
 
           const { logicalPath, absolutePath } =
-            await ensureExistingDirectory(rawPath);
-          const skillPaths = await discoverSkillEntryPoints(absolutePath);
+            await ensureExistingDirectory(rawPath)
+          const skillPaths = await discoverSkillEntryPoints(absolutePath)
 
           if (skillPaths.length === 0) {
-            ctx.ui.notify(`No skills found under "${logicalPath}".`, 'warning');
-            return;
+            ctx.ui.notify(`No skills found under "${logicalPath}".`, 'warning')
+            return
           }
 
           if (selectedPaths.has(logicalPath)) {
-            ctx.ui.notify(`"${logicalPath}" is already active.`, 'info');
-            return;
+            ctx.ui.notify(`"${logicalPath}" is already active.`, 'info')
+            return
           }
 
-          selectedPaths.add(logicalPath);
-          persistSelectedPaths();
+          selectedPaths.add(logicalPath)
+          persistSelectedPaths()
           ctx.ui.notify(
             `Added "${logicalPath}" (${pluralize(skillPaths.length, 'skill')}). Reloading…`,
             'info',
-          );
-          await ctx.reload();
-          return;
+          )
+          await ctx.reload()
+          return
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          ctx.ui.notify(message, 'error');
+          const message = error instanceof Error ? error.message : String(error)
+          ctx.ui.notify(message, 'error')
         }
       },
-    });
+    })
 
     pi.registerCommand(REMOVE_COMMAND, {
       description: 'Unload a skill pack from the current session',
       getArgumentCompletions: (prefix) =>
         getRemoveCompletions(selectedPaths, prefix),
       handler: async (args, ctx) => {
-        const rawPath = args.trim();
+        const rawPath = args.trim()
 
         if (!rawPath) {
-          ctx.ui.notify(`Usage: /${REMOVE_COMMAND} <path>`, 'warning');
-          return;
+          ctx.ui.notify(`Usage: /${REMOVE_COMMAND} <path>`, 'warning')
+          return
         }
 
         try {
-          refreshSelectedPaths(ctx);
+          refreshSelectedPaths(ctx)
 
-          const logicalPath = normalizeSkillpackPath(rawPath);
+          const logicalPath = normalizeSkillpackPath(rawPath)
 
           if (!selectedPaths.has(logicalPath)) {
             ctx.ui.notify(
               `"${logicalPath}" is not active in this session.`,
               'warning',
-            );
-            return;
+            )
+            return
           }
 
-          selectedPaths.delete(logicalPath);
-          persistSelectedPaths();
+          selectedPaths.delete(logicalPath)
+          persistSelectedPaths()
           ctx.ui.notify(
             `Removed "${logicalPath}" (${pluralize(selectedPaths.size, 'selection')} remaining). Reloading…`,
             'info',
-          );
-          await ctx.reload();
-          return;
+          )
+          await ctx.reload()
+          return
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          ctx.ui.notify(message, 'error');
+          const message = error instanceof Error ? error.message : String(error)
+          ctx.ui.notify(message, 'error')
         }
       },
-    });
+    })
 
     pi.registerCommand(SKILLPACKS_COMMAND, {
       description: 'Browse and toggle skill packs and skills',
       handler: async (args, ctx) => {
-        refreshSelectedPaths(ctx);
+        refreshSelectedPaths(ctx)
 
-        const items = await loadSkillpackBrowserItems(rootDir);
+        const items = await loadSkillpackBrowserItems(rootDir)
         if (items.length === 0) {
-          ctx.ui.notify(`No skill packs found under ${rootDir}.`, 'warning');
-          return;
+          ctx.ui.notify(`No skill packs found under ${rootDir}.`, 'warning')
+          return
         }
 
-        const pendingSelections = new Set(selectedPaths);
+        const pendingSelections = new Set(selectedPaths)
         const result = await ctx.ui.custom<string[] | null>(
           (tui, theme, _kb, done) => {
             return new SkillpacksDialog(
@@ -850,30 +846,30 @@ export function createSkillpackSessionLoader(
               () => tui.requestRender(),
               done,
               args.trim(),
-            );
+            )
           },
-        );
+        )
 
         if (!result) {
-          return;
+          return
         }
 
         if (sameSelections(selectedPaths, result)) {
-          ctx.ui.notify('Skill pack selections unchanged.', 'info');
-          return;
+          ctx.ui.notify('Skill pack selections unchanged.', 'info')
+          return
         }
 
-        selectedPaths = new Set(result);
-        persistSelectedPaths();
+        selectedPaths = new Set(result)
+        persistSelectedPaths()
         ctx.ui.notify(
           `Updated skillpack selections (${pluralize(selectedPaths.size, 'selection')}). Reloading…`,
           'info',
-        );
-        await ctx.reload();
-        return;
+        )
+        await ctx.reload()
+        return
       },
-    });
-  };
+    })
+  }
 }
 
-export default createSkillpackSessionLoader();
+export default createSkillpackSessionLoader()

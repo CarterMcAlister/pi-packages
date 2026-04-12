@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
-import * as childProcess from 'node:child_process';
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
+import * as childProcess from 'node:child_process'
 
 import {
   ensureWorktrunkAvailable,
@@ -7,25 +7,25 @@ import {
   resolveWorktreeRef,
   WorktrunkError,
   type WorktrunkListEntry,
-} from '../../src/services/worktrunk.ts';
+} from '../../src/services/worktrunk.ts'
 
 describe('worktrunk service', () => {
   beforeEach(() => {
-    mock.restore();
-  });
+    mock.restore()
+  })
 
   it('throws a helpful error when wt is missing', () => {
     spyOn(childProcess, 'spawnSync').mockReturnValue({
       status: 127,
       stdout: '',
       stderr: '',
-    } as never);
+    } as never)
 
-    expect(() => ensureWorktrunkAvailable('/repo')).toThrow(WorktrunkError);
+    expect(() => ensureWorktrunkAvailable('/repo')).toThrow(WorktrunkError)
     expect(() => ensureWorktrunkAvailable('/repo')).toThrow(
       /Worktrunk \(wt\) is not installed/,
-    );
-  });
+    )
+  })
 
   it('parses wt list json output', async () => {
     spyOn(childProcess, 'spawnSync').mockReturnValue({
@@ -47,9 +47,9 @@ describe('worktrunk service', () => {
         },
       ]),
       stderr: '',
-    } as never);
+    } as never)
 
-    const worktrees = await listWorktrees('/repo');
+    const worktrees = await listWorktrees('/repo')
 
     expect(worktrees).toEqual<WorktrunkListEntry[]>([
       {
@@ -66,8 +66,8 @@ describe('worktrunk service', () => {
         isCurrent: false,
         isMain: true,
       },
-    ]);
-  });
+    ])
+  })
 
   it('resolves a worktree by branch, basename, or full path', () => {
     const worktrees: WorktrunkListEntry[] = [
@@ -78,16 +78,16 @@ describe('worktrunk service', () => {
         isCurrent: false,
         isMain: false,
       },
-    ];
+    ]
 
     expect(resolveWorktreeRef(worktrees, 'feature/auth')?.path).toBe(
       '/repo.worktrees/feature-auth',
-    );
+    )
     expect(resolveWorktreeRef(worktrees, 'feature-auth')?.path).toBe(
       '/repo.worktrees/feature-auth',
-    );
+    )
     expect(
       resolveWorktreeRef(worktrees, '/repo.worktrees/feature-auth')?.path,
-    ).toBe('/repo.worktrees/feature-auth');
-  });
-});
+    ).toBe('/repo.worktrees/feature-auth')
+  })
+})

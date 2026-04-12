@@ -19,13 +19,8 @@
   "javascript": {
     "formatter": {
       "quoteStyle": "single",
-      "semicolons": "always",
+      "semicolons": "asNeeded",
       "trailingCommas": "all"
-    }
-  },
-  "json": {
-    "formatter": {
-      "trailingCommas": "none"
     }
   }
 }

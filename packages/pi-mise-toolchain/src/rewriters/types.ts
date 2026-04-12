@@ -1,12 +1,12 @@
-import type { BashSpawnContext } from '@mariozechner/pi-coding-agent';
+import type { BashSpawnContext } from '@mariozechner/pi-coding-agent'
 
 export interface RewriteNotice {
-  message: string;
+  message: string
 }
 
 export interface RewriteResult {
-  ctx: BashSpawnContext;
-  notices: RewriteNotice[];
+  ctx: BashSpawnContext
+  notices: RewriteNotice[]
 }
 
-export type Rewriter = (ctx: BashSpawnContext) => RewriteResult;
+export type Rewriter = (ctx: BashSpawnContext) => RewriteResult

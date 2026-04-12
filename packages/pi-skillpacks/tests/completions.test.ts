@@ -1,23 +1,23 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test';
-import { getAddCompletions, getRemoveCompletions } from '../src/completions';
+import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { getAddCompletions, getRemoveCompletions } from '../src/completions'
 import {
   createTempSkillpackRoot,
   removeTempDir,
   writeSkill,
-} from './support/skillpack-fixtures';
+} from './support/skillpack-fixtures'
 
-let rootDir = '';
+let rootDir = ''
 
 beforeEach(async () => {
-  rootDir = await createTempSkillpackRoot();
-  await writeSkill(rootDir, 'superpowers/agent-browser');
-  await writeSkill(rootDir, 'superpowers/planner');
-  await writeSkill(rootDir, 'design-tools/palette');
-});
+  rootDir = await createTempSkillpackRoot()
+  await writeSkill(rootDir, 'superpowers/agent-browser')
+  await writeSkill(rootDir, 'superpowers/planner')
+  await writeSkill(rootDir, 'design-tools/palette')
+})
 
 afterEach(async () => {
-  await removeTempDir(rootDir);
-});
+  await removeTempDir(rootDir)
+})
 
 test('getAddCompletions suggests matching group and leaf paths', async () => {
   expect(await getAddCompletions(rootDir, 'sup')).toEqual([
@@ -36,12 +36,12 @@ test('getAddCompletions suggests matching group and leaf paths', async () => {
       label: 'superpowers/planner',
       description: 'skill • 1 skill',
     },
-  ]);
-});
+  ])
+})
 
 test('getAddCompletions returns null when the root directory is missing', async () => {
-  expect(await getAddCompletions(`${rootDir}/missing`, 'sup')).toBeNull();
-});
+  expect(await getAddCompletions(`${rootDir}/missing`, 'sup')).toBeNull()
+})
 
 test('getRemoveCompletions only returns active selections matching the prefix', () => {
   expect(getRemoveCompletions(['superpowers', 'design-tools'], 'sup')).toEqual([
@@ -50,5 +50,5 @@ test('getRemoveCompletions only returns active selections matching the prefix', 
       label: 'superpowers',
       description: 'active selection',
     },
-  ]);
-});
+  ])
+})

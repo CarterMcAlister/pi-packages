@@ -20,12 +20,7 @@
     "pi",
     "pi-package",
     "pi-packages",
-    "pi-extensions",
-    "pi-coding-agent",
-    "bun",
-    "mise",
-    "biome",
-    "lefthook"
+    "pi-extensions"
   ],
   "repository": {
     "type": "git",

@@ -13,7 +13,7 @@ import type {
   Statement,
   Word,
   WordPart,
-} from '@aliou/sh';
+} from '@aliou/sh'
 
 /**
  * Resolve a Word node to its literal string value.
@@ -22,27 +22,27 @@ import type {
  * includes the raw text representation (e.g. `$VAR`).
  */
 export function wordToString(word: Word): string {
-  return word.parts.map(partToString).join('');
+  return word.parts.map(partToString).join('')
 }
 
 function partToString(part: WordPart): string {
   switch (part.type) {
     case 'Literal':
-      return part.value;
+      return part.value
     case 'SglQuoted':
-      return part.value;
+      return part.value
     case 'DblQuoted':
-      return part.parts.map(partToString).join('');
+      return part.parts.map(partToString).join('')
     case 'ParamExp':
       return part.short
         ? `$${part.param.value}`
-        : `\${${part.param.value}${part.op ?? ''}${part.value ? wordToString(part.value) : ''}}`;
+        : `\${${part.param.value}${part.op ?? ''}${part.value ? wordToString(part.value) : ''}}`
     case 'CmdSubst':
-      return '$(...)';
+      return '$(...)'
     case 'ArithExp':
-      return `$((${part.expr}))`;
+      return `$((${part.expr}))`
     case 'ProcSubst':
-      return `${part.op}(...)`;
+      return `${part.op}(...)`
   }
 }
 
@@ -55,7 +55,7 @@ export function walkCommands(
   callback: (cmd: SimpleCommand) => boolean | undefined,
 ): void {
   for (const stmt of node.body) {
-    if (walkStatement(stmt, callback)) return;
+    if (walkStatement(stmt, callback)) return
   }
 }
 
@@ -72,7 +72,7 @@ export function walkCommandsWithAssignments(
   ) => boolean | undefined,
 ): void {
   for (const stmt of node.body) {
-    if (walkStatementWithAssignments(stmt, callback)) return;
+    if (walkStatementWithAssignments(stmt, callback)) return
   }
 }
 
@@ -80,7 +80,7 @@ function walkStatement(
   stmt: Statement,
   callback: (cmd: SimpleCommand) => boolean | undefined,
 ): boolean {
-  return walkCommand(stmt.command, callback);
+  return walkCommand(stmt.command, callback)
 }
 
 function walkStatementWithAssignments(
@@ -90,7 +90,7 @@ function walkStatementWithAssignments(
     assignments: Assignment[],
   ) => boolean | undefined,
 ): boolean {
-  return walkCommandWithAssignments(stmt.command, callback);
+  return walkCommandWithAssignments(stmt.command, callback)
 }
 
 function walkStatements(
@@ -98,9 +98,9 @@ function walkStatements(
   callback: (cmd: SimpleCommand) => boolean | undefined,
 ): boolean {
   for (const stmt of stmts) {
-    if (walkStatement(stmt, callback)) return true;
+    if (walkStatement(stmt, callback)) return true
   }
-  return false;
+  return false
 }
 
 function walkStatementsWithAssignments(
@@ -111,9 +111,9 @@ function walkStatementsWithAssignments(
   ) => boolean | undefined,
 ): boolean {
   for (const stmt of stmts) {
-    if (walkStatementWithAssignments(stmt, callback)) return true;
+    if (walkStatementWithAssignments(stmt, callback)) return true
   }
-  return false;
+  return false
 }
 
 function walkCommand(
@@ -122,26 +122,26 @@ function walkCommand(
 ): boolean {
   switch (cmd.type) {
     case 'SimpleCommand':
-      return callback(cmd) === true;
+      return callback(cmd) === true
 
     case 'Pipeline':
-      return walkStatements(cmd.commands, callback);
+      return walkStatements(cmd.commands, callback)
 
     case 'Logical':
       return (
         walkStatement(cmd.left, callback) || walkStatement(cmd.right, callback)
-      );
+      )
 
     case 'Subshell':
     case 'Block':
-      return walkStatements(cmd.body, callback);
+      return walkStatements(cmd.body, callback)
 
     case 'IfClause':
       return (
         walkStatements(cmd.cond, callback) ||
         walkStatements(cmd.then, callback) ||
         (cmd.else ? walkStatements(cmd.else, callback) : false)
-      );
+      )
 
     case 'ForClause':
     case 'SelectClause':
@@ -150,31 +150,31 @@ function walkCommand(
         ('cond' in cmd && cmd.cond
           ? walkStatements(cmd.cond, callback)
           : false) || walkStatements(cmd.body, callback)
-      );
+      )
 
     case 'CaseClause':
       for (const item of cmd.items) {
-        if (walkStatements(item.body, callback)) return true;
+        if (walkStatements(item.body, callback)) return true
       }
-      return false;
+      return false
 
     case 'FunctionDecl':
-      return walkStatements(cmd.body, callback);
+      return walkStatements(cmd.body, callback)
 
     case 'TimeClause':
-      return walkStatement(cmd.command, callback);
+      return walkStatement(cmd.command, callback)
 
     case 'CoprocClause':
-      return walkStatement(cmd.body, callback);
+      return walkStatement(cmd.body, callback)
 
     case 'CStyleLoop':
-      return walkStatements(cmd.body, callback);
+      return walkStatements(cmd.body, callback)
 
     case 'TestClause':
     case 'ArithCmd':
     case 'DeclClause':
     case 'LetClause':
-      return false;
+      return false
   }
 }
 
@@ -187,27 +187,27 @@ function walkCommandWithAssignments(
 ): boolean {
   switch (cmd.type) {
     case 'SimpleCommand':
-      return callback(cmd, cmd.assignments ?? []) === true;
+      return callback(cmd, cmd.assignments ?? []) === true
 
     case 'Pipeline':
-      return walkStatementsWithAssignments(cmd.commands, callback);
+      return walkStatementsWithAssignments(cmd.commands, callback)
 
     case 'Logical':
       return (
         walkStatementWithAssignments(cmd.left, callback) ||
         walkStatementWithAssignments(cmd.right, callback)
-      );
+      )
 
     case 'Subshell':
     case 'Block':
-      return walkStatementsWithAssignments(cmd.body, callback);
+      return walkStatementsWithAssignments(cmd.body, callback)
 
     case 'IfClause':
       return (
         walkStatementsWithAssignments(cmd.cond, callback) ||
         walkStatementsWithAssignments(cmd.then, callback) ||
         (cmd.else ? walkStatementsWithAssignments(cmd.else, callback) : false)
-      );
+      )
 
     case 'ForClause':
     case 'SelectClause':
@@ -216,30 +216,30 @@ function walkCommandWithAssignments(
         ('cond' in cmd && cmd.cond
           ? walkStatementsWithAssignments(cmd.cond, callback)
           : false) || walkStatementsWithAssignments(cmd.body, callback)
-      );
+      )
 
     case 'CaseClause':
       for (const item of cmd.items) {
-        if (walkStatementsWithAssignments(item.body, callback)) return true;
+        if (walkStatementsWithAssignments(item.body, callback)) return true
       }
-      return false;
+      return false
 
     case 'FunctionDecl':
-      return walkStatementsWithAssignments(cmd.body, callback);
+      return walkStatementsWithAssignments(cmd.body, callback)
 
     case 'TimeClause':
-      return walkStatementWithAssignments(cmd.command, callback);
+      return walkStatementWithAssignments(cmd.command, callback)
 
     case 'CoprocClause':
-      return walkStatementWithAssignments(cmd.body, callback);
+      return walkStatementWithAssignments(cmd.body, callback)
 
     case 'CStyleLoop':
-      return walkStatementsWithAssignments(cmd.body, callback);
+      return walkStatementsWithAssignments(cmd.body, callback)
 
     case 'TestClause':
     case 'ArithCmd':
     case 'DeclClause':
     case 'LetClause':
-      return false;
+      return false
   }
 }

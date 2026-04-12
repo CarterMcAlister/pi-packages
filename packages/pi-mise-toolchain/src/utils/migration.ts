@@ -12,52 +12,52 @@
  * - features.preventDockerSecrets: removed (warn to use pi-guardrails)
  */
 
-import type { FeatureMode, ToolchainConfig } from '../config';
+import type { FeatureMode, ToolchainConfig } from '../config'
 
 /**
  * Config schema version. Bump only when a migration is added.
  * Keep independent from package.json version.
  */
-export const CURRENT_VERSION = '0.5.2-20260331';
+export const CURRENT_VERSION = '0.5.2-20260331'
 
 /** Warnings queued during migration, flushed at session_start. */
-export const pendingWarnings: string[] = [];
+export const pendingWarnings: string[] = []
 
 const LEGACY_BOOLEAN_FEATURES = [
   'enforcePackageManager',
   'rewritePython',
   'gitRebaseEditor',
-] as const;
+] as const
 
-const REMOVED_FEATURES = ['preventBrew', 'preventDockerSecrets'] as const;
+const REMOVED_FEATURES = ['preventBrew', 'preventDockerSecrets'] as const
 
 /** v0 = any config without a version field. */
 export function isV0(config: ToolchainConfig): boolean {
-  return (config as Record<string, unknown>).version === undefined;
+  return (config as Record<string, unknown>).version === undefined
 }
 
 export function migrateV0(config: ToolchainConfig): ToolchainConfig {
   const migrated = structuredClone(config) as Record<string, unknown> & {
-    features: Record<string, unknown>;
-  };
+    features: Record<string, unknown>
+  }
 
-  if (!migrated.features) migrated.features = {};
+  if (!migrated.features) migrated.features = {}
 
   // Migrate boolean features to FeatureMode strings.
   for (const key of LEGACY_BOOLEAN_FEATURES) {
-    const val = migrated.features[key];
+    const val = migrated.features[key]
     if (typeof val === 'boolean') {
-      const mode: FeatureMode = val ? 'rewrite' : 'disabled';
-      migrated.features[key] = mode;
+      const mode: FeatureMode = val ? 'rewrite' : 'disabled'
+      migrated.features[key] = mode
     }
   }
 
   // Strip removed features and warn.
-  const removedFound: string[] = [];
+  const removedFound: string[] = []
   for (const key of REMOVED_FEATURES) {
     if (key in migrated.features) {
-      delete migrated.features[key];
-      removedFound.push(key);
+      delete migrated.features[key]
+      removedFound.push(key)
     }
   }
 
@@ -76,14 +76,14 @@ export function migrateV0(config: ToolchainConfig): ToolchainConfig {
         : 'Note: preventBrew and preventDockerSecrets have been removed from pi-toolchain. ' +
           'They are now available in @aliou/pi-guardrails ' +
           '(/guardrails:settings > Examples > Dangerous command presets).'),
-  );
+  )
 
-  migrated.version = CURRENT_VERSION;
-  return migrated as ToolchainConfig;
+  migrated.version = CURRENT_VERSION
+  return migrated as ToolchainConfig
 }
 
 export function isMissingBashSourceMode(config: ToolchainConfig): boolean {
-  return config.bash?.sourceMode === undefined;
+  return config.bash?.sourceMode === undefined
 }
 
 export function migrateMissingBashSourceMode(
@@ -96,5 +96,5 @@ export function migrateMissingBashSourceMode(
       sourceMode: 'override-bash',
     },
     version: CURRENT_VERSION,
-  };
+  }
 }

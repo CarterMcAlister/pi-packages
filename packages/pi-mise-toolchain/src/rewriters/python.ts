@@ -14,52 +14,52 @@
  * for rewrites).
  */
 
-import type { Program } from '@aliou/sh';
-import { parse } from '@aliou/sh';
-import { walkCommands, wordToString } from '../utils/shell-utils';
-import type { Rewriter } from './types';
+import type { Program } from '@aliou/sh'
+import { parse } from '@aliou/sh'
+import { walkCommands, wordToString } from '../utils/shell-utils'
+import type { Rewriter } from './types'
 
-const PYTHON_COMMANDS = new Set(['python', 'python3']);
-const PIP_COMMANDS = new Set(['pip', 'pip3']);
+const PYTHON_COMMANDS = new Set(['python', 'python3'])
+const PIP_COMMANDS = new Set(['pip', 'pip3'])
 
 interface Replacement {
-  start: number;
-  end: number;
-  text: string;
+  start: number
+  end: number
+  text: string
 }
 
 export function createPythonRewriter(): Rewriter {
   return (ctx) => {
-    let ast: Program;
+    let ast: Program
     try {
-      ({ ast } = parse(ctx.command));
+      ;({ ast } = parse(ctx.command))
     } catch {
-      return { ctx, notices: [] };
+      return { ctx, notices: [] }
     }
 
-    const replacements: Replacement[] = [];
+    const replacements: Replacement[] = []
 
     walkCommands(ast, (cmd) => {
-      const firstWord = cmd.words?.[0];
-      if (!firstWord) return;
+      const firstWord = cmd.words?.[0]
+      if (!firstWord) return
 
-      const name = wordToString(firstWord);
+      const name = wordToString(firstWord)
 
-      const isPython = PYTHON_COMMANDS.has(name);
-      const isPip = PIP_COMMANDS.has(name);
-      if (!isPython && !isPip) return;
+      const isPython = PYTHON_COMMANDS.has(name)
+      const isPip = PIP_COMMANDS.has(name)
+      if (!isPython && !isPip) return
 
-      const firstPart = firstWord.parts[0];
-      if (!firstPart || firstPart.type !== 'Literal') return;
+      const firstPart = firstWord.parts[0]
+      if (!firstPart || firstPart.type !== 'Literal') return
 
-      const literalValue = firstPart.value;
+      const literalValue = firstPart.value
       const searchFrom =
         replacements.length > 0
           ? (replacements[replacements.length - 1] as Replacement).end
-          : 0;
+          : 0
 
-      const idx = findCommandPosition(ctx.command, literalValue, searchFrom);
-      if (idx === -1) return;
+      const idx = findCommandPosition(ctx.command, literalValue, searchFrom)
+      if (idx === -1) return
 
       if (isPython) {
         // python X -> uv run python X (prepend "uv run ")
@@ -67,26 +67,26 @@ export function createPythonRewriter(): Rewriter {
           start: idx,
           end: idx,
           text: 'uv run ',
-        });
+        })
       } else {
         // pip X -> uv pip X (replace pip/pip3 with "uv pip")
         replacements.push({
           start: idx,
           end: idx + literalValue.length,
           text: 'uv pip',
-        });
+        })
       }
 
-      return undefined;
-    });
+      return undefined
+    })
 
-    if (replacements.length === 0) return { ctx, notices: [] };
+    if (replacements.length === 0) return { ctx, notices: [] }
 
     // Apply replacements from right to left so offsets remain valid.
-    let result = ctx.command;
+    let result = ctx.command
     for (let i = replacements.length - 1; i >= 0; i--) {
-      const r = replacements[i] as Replacement;
-      result = result.slice(0, r.start) + r.text + result.slice(r.end);
+      const r = replacements[i] as Replacement
+      result = result.slice(0, r.start) + r.text + result.slice(r.end)
     }
 
     return {
@@ -95,8 +95,8 @@ export function createPythonRewriter(): Rewriter {
         result === ctx.command
           ? []
           : [{ message: `Rewrote command: ${ctx.command} -> ${result}` }],
-    };
-  };
+    }
+  }
 }
 
 /**
@@ -108,23 +108,23 @@ function findCommandPosition(
   name: string,
   searchFrom: number,
 ): number {
-  let pos = searchFrom;
+  let pos = searchFrom
   while (pos < source.length) {
-    const idx = source.indexOf(name, pos);
-    if (idx === -1) return -1;
+    const idx = source.indexOf(name, pos)
+    if (idx === -1) return -1
 
-    const before = idx > 0 ? source[idx - 1] : undefined;
+    const before = idx > 0 ? source[idx - 1] : undefined
     const after =
-      idx + name.length < source.length ? source[idx + name.length] : undefined;
+      idx + name.length < source.length ? source[idx + name.length] : undefined
 
     const validBefore =
-      before === undefined || /[\s;|&(]/.test(before) || before === '\n';
+      before === undefined || /[\s;|&(]/.test(before) || before === '\n'
     const validAfter =
-      after === undefined || /[\s;|&)]/.test(after) || after === '\n';
+      after === undefined || /[\s;|&)]/.test(after) || after === '\n'
 
-    if (validBefore && validAfter) return idx;
+    if (validBefore && validAfter) return idx
 
-    pos = idx + 1;
+    pos = idx + 1
   }
-  return -1;
+  return -1
 }

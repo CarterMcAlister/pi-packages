@@ -1,83 +1,83 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { SKILL_FILE_NAME } from './constants';
-import { listSelectableSkillpackTargets } from './discovery';
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { SKILL_FILE_NAME } from './constants'
+import { listSelectableSkillpackTargets } from './discovery'
 
 export interface SkillpackBrowserItem {
-  value: string;
-  kind: 'group' | 'skill';
-  skillCount: number;
-  depth: number;
-  label: string;
-  title: string;
-  description: string;
-  body: string;
-  skillFilePath?: string;
+  value: string
+  kind: 'group' | 'skill'
+  skillCount: number
+  depth: number
+  label: string
+  title: string
+  description: string
+  body: string
+  skillFilePath?: string
 }
 
 export type SkillpackBrowserStatus =
   | 'explicit'
   | 'active'
   | 'partial'
-  | 'inactive';
+  | 'inactive'
 
 interface ParsedSkillDocument {
-  name: string;
-  description: string;
-  body: string;
+  name: string
+  description: string
+  body: string
 }
 
 function parseFrontmatterValue(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
+  const trimmed = value.trim()
+  if (!trimmed) return ''
   if (
     (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'"))
   ) {
-    return trimmed.slice(1, -1);
+    return trimmed.slice(1, -1)
   }
-  return trimmed;
+  return trimmed
 }
 
 function parseSkillDocument(text: string): ParsedSkillDocument {
-  const normalized = text.replaceAll('\r\n', '\n');
+  const normalized = text.replaceAll('\r\n', '\n')
 
   if (!normalized.startsWith('---\n')) {
     return {
       name: '',
       description: '',
       body: normalized.trim(),
-    };
+    }
   }
 
-  const closingIndex = normalized.indexOf('\n---\n', 4);
+  const closingIndex = normalized.indexOf('\n---\n', 4)
 
   if (closingIndex === -1) {
     return {
       name: '',
       description: '',
       body: normalized.trim(),
-    };
+    }
   }
 
-  const frontmatter = normalized.slice(4, closingIndex).split('\n');
-  const body = normalized.slice(closingIndex + 5).trim();
+  const frontmatter = normalized.slice(4, closingIndex).split('\n')
+  const body = normalized.slice(closingIndex + 5).trim()
 
-  let name = '';
-  let description = '';
+  let name = ''
+  let description = ''
 
   for (const line of frontmatter) {
-    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (!match) continue;
+    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/)
+    if (!match) continue
 
-    const [, key, rawValue] = match;
-    const value = parseFrontmatterValue(rawValue);
+    const [, key, rawValue] = match
+    const value = parseFrontmatterValue(rawValue)
 
-    if (key === 'name') name = value;
-    if (key === 'description') description = value;
+    if (key === 'name') name = value
+    if (key === 'description') description = value
   }
 
-  return { name, description, body };
+  return { name, description, body }
 }
 
 function includesQuery(
@@ -85,19 +85,19 @@ function includesQuery(
   normalizedQuery: string,
 ): boolean {
   const haystack =
-    `${item.value}\n${item.label}\n${item.title}\n${item.description}`.toLowerCase();
-  return haystack.includes(normalizedQuery);
+    `${item.value}\n${item.label}\n${item.title}\n${item.description}`.toLowerCase()
+  return haystack.includes(normalizedQuery)
 }
 
 function getAncestorPaths(value: string): string[] {
-  const parts = value.split('/');
-  const ancestors: string[] = [];
+  const parts = value.split('/')
+  const ancestors: string[] = []
 
   for (let index = 1; index < parts.length; index += 1) {
-    ancestors.push(parts.slice(0, index).join('/'));
+    ancestors.push(parts.slice(0, index).join('/'))
   }
 
-  return ancestors;
+  return ancestors
 }
 
 function hasAncestorSelection(
@@ -107,14 +107,14 @@ function hasAncestorSelection(
   return Array.from(selectedPaths).some(
     (selectedPath) =>
       value !== selectedPath && value.startsWith(`${selectedPath}/`),
-  );
+  )
 }
 
 function isSkillActive(
   selectedPaths: ReadonlySet<string>,
   value: string,
 ): boolean {
-  return selectedPaths.has(value) || hasAncestorSelection(selectedPaths, value);
+  return selectedPaths.has(value) || hasAncestorSelection(selectedPaths, value)
 }
 
 function getDescendantSkillItems(
@@ -125,18 +125,18 @@ function getDescendantSkillItems(
     (item) =>
       item.kind === 'skill' &&
       (item.value === value || item.value.startsWith(`${value}/`)),
-  );
+  )
 }
 
 export async function loadSkillpackBrowserItems(
   rootDir: string,
 ): Promise<SkillpackBrowserItem[]> {
-  const targets = await listSelectableSkillpackTargets(rootDir);
+  const targets = await listSelectableSkillpackTargets(rootDir)
 
   return Promise.all(
     targets.map(async (target) => {
-      const segments = target.value.split('/');
-      const label = segments.at(-1) ?? target.value;
+      const segments = target.value.split('/')
+      const label = segments.at(-1) ?? target.value
 
       if (target.kind === 'group') {
         return {
@@ -148,12 +148,12 @@ export async function loadSkillpackBrowserItems(
           title: label,
           description: `Contains ${target.skillCount} ${target.skillCount === 1 ? 'skill' : 'skills'}.`,
           body: '',
-        } satisfies SkillpackBrowserItem;
+        } satisfies SkillpackBrowserItem
       }
 
-      const skillFilePath = join(rootDir, ...segments, SKILL_FILE_NAME);
-      const contents = await readFile(skillFilePath, 'utf8').catch(() => '');
-      const parsed = parseSkillDocument(contents);
+      const skillFilePath = join(rootDir, ...segments, SKILL_FILE_NAME)
+      const contents = await readFile(skillFilePath, 'utf8').catch(() => '')
+      const parsed = parseSkillDocument(contents)
 
       return {
         value: target.value,
@@ -165,43 +165,43 @@ export async function loadSkillpackBrowserItems(
         description: parsed.description || `Skill at ${target.value}`,
         body: parsed.body,
         skillFilePath,
-      } satisfies SkillpackBrowserItem;
+      } satisfies SkillpackBrowserItem
     }),
-  );
+  )
 }
 
 export function filterSkillpackBrowserItems(
   items: SkillpackBrowserItem[],
   query: string,
 ): SkillpackBrowserItem[] {
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = query.trim().toLowerCase()
 
   if (!normalizedQuery) {
-    return items;
+    return items
   }
 
   const directlyMatchedItems = items.filter((item) =>
     includesQuery(item, normalizedQuery),
-  );
+  )
   const includedPaths = new Set<string>(
     directlyMatchedItems.map((item) => item.value),
-  );
+  )
 
   for (const item of directlyMatchedItems) {
     for (const ancestor of getAncestorPaths(item.value)) {
-      includedPaths.add(ancestor);
+      includedPaths.add(ancestor)
     }
 
     if (item.kind === 'group') {
       for (const candidate of items) {
         if (candidate.value.startsWith(`${item.value}/`)) {
-          includedPaths.add(candidate.value);
+          includedPaths.add(candidate.value)
         }
       }
     }
   }
 
-  return items.filter((item) => includedPaths.has(item.value));
+  return items.filter((item) => includedPaths.has(item.value))
 }
 
 function hasCollapsedAncestor(
@@ -210,7 +210,7 @@ function hasCollapsedAncestor(
 ): boolean {
   return Array.from(collapsedPaths).some((collapsedPath) =>
     value.startsWith(`${collapsedPath}/`),
-  );
+  )
 }
 
 export function getVisibleSkillpackBrowserItems(
@@ -218,16 +218,16 @@ export function getVisibleSkillpackBrowserItems(
   query: string,
   collapsedPaths: Iterable<string>,
 ): SkillpackBrowserItem[] {
-  const filteredItems = filterSkillpackBrowserItems(items, query);
+  const filteredItems = filterSkillpackBrowserItems(items, query)
 
   if (query.trim().length > 0) {
-    return filteredItems;
+    return filteredItems
   }
 
-  const collapsedSet = new Set(collapsedPaths);
+  const collapsedSet = new Set(collapsedPaths)
   return filteredItems.filter(
     (item) => !hasCollapsedAncestor(collapsedSet, item.value),
-  );
+  )
 }
 
 export function getSkillpackBrowserStatus(
@@ -235,30 +235,30 @@ export function getSkillpackBrowserStatus(
   selectedPaths: Iterable<string>,
   item: SkillpackBrowserItem,
 ): SkillpackBrowserStatus {
-  const selectedSet = new Set(selectedPaths);
+  const selectedSet = new Set(selectedPaths)
 
   if (selectedSet.has(item.value)) {
-    return 'explicit';
+    return 'explicit'
   }
 
   if (item.kind === 'skill') {
-    return isSkillActive(selectedSet, item.value) ? 'active' : 'inactive';
+    return isSkillActive(selectedSet, item.value) ? 'active' : 'inactive'
   }
 
-  const descendantSkills = getDescendantSkillItems(items, item.value);
+  const descendantSkills = getDescendantSkillItems(items, item.value)
   const activeSkillCount = descendantSkills.filter((skill) =>
     isSkillActive(selectedSet, skill.value),
-  ).length;
+  ).length
 
   if (activeSkillCount === 0) {
-    return 'inactive';
+    return 'inactive'
   }
 
   if (activeSkillCount === descendantSkills.length) {
-    return 'active';
+    return 'active'
   }
 
-  return 'partial';
+  return 'partial'
 }
 
 export function countActiveSkillsForItem(
@@ -266,15 +266,15 @@ export function countActiveSkillsForItem(
   selectedPaths: Iterable<string>,
   item: SkillpackBrowserItem,
 ): number {
-  const selectedSet = new Set(selectedPaths);
+  const selectedSet = new Set(selectedPaths)
 
   if (item.kind === 'skill') {
-    return isSkillActive(selectedSet, item.value) ? 1 : 0;
+    return isSkillActive(selectedSet, item.value) ? 1 : 0
   }
 
   return getDescendantSkillItems(items, item.value).filter((skill) =>
     isSkillActive(selectedSet, skill.value),
-  ).length;
+  ).length
 }
 
 export function getDescendantSkills(
@@ -283,5 +283,5 @@ export function getDescendantSkills(
 ): SkillpackBrowserItem[] {
   return item.kind === 'skill'
     ? [item]
-    : getDescendantSkillItems(items, item.value);
+    : getDescendantSkillItems(items, item.value)
 }

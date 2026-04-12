@@ -1,15 +1,15 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
-import * as childProcess from 'node:child_process';
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
+import * as childProcess from 'node:child_process'
 
 import {
   createWorktree,
   switchToWorktree,
-} from '../../src/services/worktrunk.ts';
+} from '../../src/services/worktrunk.ts'
 
 describe('worktrunk service integration', () => {
   beforeEach(() => {
-    mock.restore();
-  });
+    mock.restore()
+  })
 
   it('creates a worktree and resolves its path from wt list', async () => {
     spyOn(childProcess, 'spawnSync')
@@ -26,13 +26,13 @@ describe('worktrunk service integration', () => {
           },
         ]),
         stderr: '',
-      } as never);
+      } as never)
 
     await expect(createWorktree('/repo', 'feature/auth')).resolves.toEqual({
       branch: 'feature/auth',
       path: '/repo.worktrees/feature-auth',
-    });
-  });
+    })
+  })
 
   it('switches to an existing worktree and resolves its path from wt list', async () => {
     spyOn(childProcess, 'spawnSync')
@@ -49,11 +49,11 @@ describe('worktrunk service integration', () => {
           },
         ]),
         stderr: '',
-      } as never);
+      } as never)
 
     await expect(switchToWorktree('/repo', 'feature/auth')).resolves.toEqual({
       branch: 'feature/auth',
       path: '/repo.worktrees/feature-auth',
-    });
-  });
-});
+    })
+  })
+})

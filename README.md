@@ -1,35 +1,20 @@
 # pi-packages
 
-A Bun-first monorepo for Carter McAlister's Pi packages.
+A Bun-first monorepo for my Pi packages.
 
 ## Packages
 
-| Directory | Package | Notes |
-| --- | --- | --- |
-| `packages/pi-skillpacks` | `@cmc/pi-skillpacks` | Session-scoped skill pack loader for Pi |
+| Directory                    | Package                  | Notes                                                          |
+| ---------------------------- | ------------------------ | -------------------------------------------------------------- |
+| `packages/pi-skillpacks`     | `@cmc/pi-skillpacks`     | Session-scoped skill pack loader for Pi                        |
 | `packages/pi-mise-toolchain` | `@cmc/pi-mise-toolchain` | Mise-driven toolchain enforcement and command rewriting for Pi |
-| `packages/pi-worktrunk` | `@cmc/pi-worktrunk` | Worktrunk-backed worktree management for Pi |
-
-## Tooling
-
-This repo is set up to use:
-
-- **Bun** for package management, scripts, and test execution
-- **mise** for tool installation and task orchestration
-- **Biome** for formatting and linting
-- **Lefthook** for `pre-commit` and `pre-push` git hooks
+| `packages/pi-worktrunk`      | `@cmc/pi-worktrunk`      | Worktrunk-backed worktree management for Pi                    |
 
 ## Getting started
 
 ```bash
 mise install
-bun install
-```
-
-Git hooks are installed automatically via the root `prepare` script. If you need to reinstall them manually:
-
-```bash
-bun run prepare
+mise run setup
 ```
 
 ## Common commands
@@ -51,6 +36,13 @@ bun run typecheck
 bun run test
 bun run check
 ```
+
+## Credits
+
+The forked packages in this monorepo build on upstream work by their original authors:
+
+- `@cmc/pi-mise-toolchain` is forked from [`@aliou/pi-toolchain`](https://github.com/aliou/pi-toolchain)
+- `@cmc/pi-worktrunk` is forked from [`@zenobius/pi-worktrees`](https://github.com/zenobi-us/pi-worktrees)
 
 ## Install individual packages in Pi
 

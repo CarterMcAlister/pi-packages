@@ -1,39 +1,60 @@
-name: Publish package
+name: Release package
 
 on:
   workflow_dispatch:
     inputs:
       package:
-        description: Package to publish
+        description: Package to release
         required: true
         type: choice
         options:
           - packages/pi-skillpacks
           - packages/pi-mise-toolchain
           - packages/pi-worktrunk
+      release_type:
+        description: Semver bump to apply before publishing
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
       tag:
         description: npm dist-tag to publish under
         required: true
         default: latest
         type: string
       dry_run:
-        description: Run npm publish in dry-run mode
+        description: Run the release without pushing, tagging, creating a GitHub release, or publishing for real
         required: true
         default: false
         type: boolean
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
+    concurrency:
+      group: release-${{ inputs.package }}
+      cancel-in-progress: false
     env:
       PACKAGE_DIR: ${{ inputs.package }}
       NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure workflow runs from main
+        run: |
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "This release workflow must be run from the main branch." >&2
+            exit 1
+          fi
 
       - name: Set up mise
         uses: jdx/mise-action@v2
@@ -43,28 +64,78 @@ jobs:
           mise install
           bun install --frozen-lockfile
 
-      - name: Validate selected package
+      - name: Validate workspace before release
         run: bun run check
 
-      - name: Resolve package metadata
-        id: package
+      - name: Bump selected package version
+        id: bump
+        run: bun scripts/release-package.ts "$PACKAGE_DIR" "${{ inputs.release_type }}" >> "$GITHUB_OUTPUT"
+
+      - name: Refresh lockfile after version bump
+        run: bun install
+
+      - name: Validate workspace after version bump
+        run: bun run check
+
+      - name: Ensure release tag does not already exist
+        if: ${{ !inputs.dry_run }}
         run: |
-          PACKAGE_NAME=$(bun -e "const pkg=require('./${PACKAGE_DIR}/package.json'); console.log(pkg.name)")
-          PACKAGE_VERSION=$(bun -e "const pkg=require('./${PACKAGE_DIR}/package.json'); console.log(pkg.version)")
-          echo "name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
-          echo "version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+          if git rev-parse "${{ steps.bump.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag already exists locally: ${{ steps.bump.outputs.tag }}" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.bump.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag already exists on origin: ${{ steps.bump.outputs.tag }}" >&2
+            exit 1
+          fi
+
+      - name: Ensure npm version has not already been published
+        if: ${{ !inputs.dry_run }}
+        run: |
+          if bunx npm view "${{ steps.bump.outputs.name }}@${{ steps.bump.outputs.version }}" version >/dev/null 2>&1; then
+            echo "Version already exists on npm: ${{ steps.bump.outputs.name }}@${{ steps.bump.outputs.version }}" >&2
+            exit 1
+          fi
+
+      - name: Configure git author
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit release changes and create tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git add "$PACKAGE_DIR/package.json" bun.lock
+          git commit -m "release(${{ steps.bump.outputs.package_basename }}): ${{ steps.bump.outputs.version }}"
+          git tag "${{ steps.bump.outputs.tag }}"
 
       - name: Configure npm authentication
         run: |
           test -n "$NPM_CONFIG_TOKEN"
           printf "//registry.npmjs.org/:_authToken=%s\n" "$NPM_CONFIG_TOKEN" > ~/.npmrc
 
-      - name: Publish package
+      - name: Publish package to npm
         working-directory: ${{ env.PACKAGE_DIR }}
         run: |
           PUBLISH_ARGS=(publish --access public --tag "${{ inputs.tag }}" --provenance)
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             PUBLISH_ARGS+=(--dry-run)
           fi
-          echo "Publishing ${{ steps.package.outputs.name }}@${{ steps.package.outputs.version }} from ${PACKAGE_DIR}"
+          echo "Releasing ${{ steps.bump.outputs.name }}@${{ steps.bump.outputs.version }} from ${PACKAGE_DIR}"
           bunx npm "${PUBLISH_ARGS[@]}"
+
+      - name: Push release commit and tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git push origin HEAD:main
+          git push origin "${{ steps.bump.outputs.tag }}"
+
+      - name: Create GitHub release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.bump.outputs.tag }}" \
+            --title "${{ steps.bump.outputs.release_name }}" \
+            --generate-notes

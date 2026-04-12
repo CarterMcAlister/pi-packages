@@ -1,0 +1,70 @@
+name: Publish package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish
+        required: true
+        type: choice
+        options:
+          - packages/pi-skillpacks
+          - packages/pi-mise-toolchain
+          - packages/pi-worktrunk
+      tag:
+        description: npm dist-tag to publish under
+        required: true
+        default: latest
+        type: string
+      dry_run:
+        description: Run npm publish in dry-run mode
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PACKAGE_DIR: ${{ inputs.package }}
+      NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up mise
+        uses: jdx/mise-action@v2
+
+      - name: Install tools and dependencies
+        run: |
+          mise install
+          bun install --frozen-lockfile
+
+      - name: Validate selected package
+        run: bun run check
+
+      - name: Resolve package metadata
+        id: package
+        run: |
+          PACKAGE_NAME=$(bun -e "const pkg=require('./${PACKAGE_DIR}/package.json'); console.log(pkg.name)")
+          PACKAGE_VERSION=$(bun -e "const pkg=require('./${PACKAGE_DIR}/package.json'); console.log(pkg.version)")
+          echo "name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure npm authentication
+        run: |
+          test -n "$NPM_CONFIG_TOKEN"
+          printf "//registry.npmjs.org/:_authToken=%s\n" "$NPM_CONFIG_TOKEN" > ~/.npmrc
+
+      - name: Publish package
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: |
+          PUBLISH_ARGS=(publish --access public --tag "${{ inputs.tag }}" --provenance)
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            PUBLISH_ARGS+=(--dry-run)
+          fi
+          echo "Publishing ${{ steps.package.outputs.name }}@${{ steps.package.outputs.version }} from ${PACKAGE_DIR}"
+          bunx npm "${PUBLISH_ARGS[@]}"

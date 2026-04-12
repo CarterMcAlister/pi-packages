@@ -1,6 +1,6 @@
 {
   "name": "@carter-mcalister/pi-skillpacks",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Session-scoped skill pack loader for Pi",
   "author": "Carter McAlister",
   "type": "module",

@@ -1,4 +1,4 @@
-# `@cmc/pi-skillpacks`
+# `@carter-mcalister/pi-skillpacks`
 
 A Pi package that adds `/skillpack-add <path>`, `/skillpack-remove <path>`, and `/skillpacks` so you can load and unload skill packs from `~/.pi/agent/skillpacks` for the current session.
 
@@ -17,7 +17,7 @@ pi install /absolute/path/to/pi-packages/packages/pi-skillpacks
 ### Install as a Pi package
 
 ```bash
-pi install npm:@cmc/pi-skillpacks
+pi install npm:@carter-mcalister/pi-skillpacks
 ```
 
 ## Skill pack layout

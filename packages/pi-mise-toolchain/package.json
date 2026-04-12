@@ -1,5 +1,5 @@
 {
-  "name": "@cmc/pi-mise-toolchain",
+  "name": "@carter-mcalister/pi-mise-toolchain",
   "version": "0.6.1",
   "description": "Mise-driven toolchain enforcement for Pi",
   "author": "Carter McAlister",

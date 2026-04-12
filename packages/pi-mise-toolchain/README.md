@@ -1,11 +1,11 @@
-# `@cmc/pi-mise-toolchain`
+# `@carter-mcalister/pi-mise-toolchain`
 
 Opinionated, mise-driven toolchain enforcement for Pi. Transparently rewrites commands to use preferred tools instead of blocking and forcing retries.
 
 ## Installation
 
 ```bash
-pi install npm:@cmc/pi-mise-toolchain
+pi install npm:@carter-mcalister/pi-mise-toolchain
 ```
 
 Or install directly from this monorepo during local development:
@@ -160,7 +160,7 @@ Important:
 
 If you were using `preventBrew`, `preventPython`, or `enforcePackageManager` in your guardrails config:
 
-1. Install `@cmc/pi-mise-toolchain`
+1. Install `@carter-mcalister/pi-mise-toolchain`
 2. Add the project tool choices to `mise.toml` (`uv` for Python, exactly one of `bun` / `pnpm` / `npm` for package-manager rewrites)
 3. Optionally configure extension-owned settings in `~/.pi/agent/extensions/toolchain.json`
 4. Remove the deprecated features from your guardrails config

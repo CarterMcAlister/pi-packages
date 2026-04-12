@@ -1,4 +1,4 @@
-# `@cmc/pi-worktrunk`
+# `@carter-mcalister/pi-worktrunk`
 
 Worktrunk-backed worktree management for [Pi Coding Agent](https://github.com/badlogic/pi-mono).
 
@@ -25,7 +25,7 @@ Runtime behavior now comes from Worktrunk config files:
 ### 1. Install the Pi extension
 
 ```bash
-pi install npm:@cmc/pi-worktrunk
+pi install npm:@carter-mcalister/pi-worktrunk
 ```
 
 ### 2. Install Worktrunk

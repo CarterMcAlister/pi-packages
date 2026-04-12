@@ -1,5 +1,5 @@
 {
-  "name": "@cmc/pi-worktrunk",
+  "name": "@carter-mcalister/pi-worktrunk",
   "version": "0.4.0",
   "description": "Worktrunk-backed worktree extension for Pi Coding Agent",
   "author": "Carter McAlister",

@@ -6,9 +6,9 @@ A Bun-first monorepo for my Pi packages.
 
 | Directory                    | Package                  | Notes                                                          |
 | ---------------------------- | ------------------------ | -------------------------------------------------------------- |
-| `packages/pi-skillpacks`     | `@cmc/pi-skillpacks`     | Session-scoped skill pack loader for Pi                        |
-| `packages/pi-mise-toolchain` | `@cmc/pi-mise-toolchain` | Mise-driven toolchain enforcement and command rewriting for Pi |
-| `packages/pi-worktrunk`      | `@cmc/pi-worktrunk`      | Worktrunk-backed worktree management for Pi                    |
+| `packages/pi-skillpacks`     | `@carter-mcalister/pi-skillpacks`     | Session-scoped skill pack loader for Pi                        |
+| `packages/pi-mise-toolchain` | `@carter-mcalister/pi-mise-toolchain` | Mise-driven toolchain enforcement and command rewriting for Pi |
+| `packages/pi-worktrunk`      | `@carter-mcalister/pi-worktrunk`      | Worktrunk-backed worktree management for Pi                    |
 
 ## Getting started
 
@@ -41,15 +41,15 @@ bun run check
 
 The forked packages in this monorepo build on upstream work by their original authors:
 
-- `@cmc/pi-mise-toolchain` is forked from [`@aliou/pi-toolchain`](https://github.com/aliou/pi-toolchain)
-- `@cmc/pi-worktrunk` is forked from [`@zenobius/pi-worktrees`](https://github.com/zenobi-us/pi-worktrees)
+- `@carter-mcalister/pi-mise-toolchain` is forked from [`@aliou/pi-toolchain`](https://github.com/aliou/pi-toolchain)
+- `@carter-mcalister/pi-worktrunk` is forked from [`@zenobius/pi-worktrees`](https://github.com/zenobi-us/pi-worktrees)
 
 ## Install individual packages in Pi
 
 ```bash
-pi install npm:@cmc/pi-skillpacks
-pi install npm:@cmc/pi-mise-toolchain
-pi install npm:@cmc/pi-worktrunk
+pi install npm:@carter-mcalister/pi-skillpacks
+pi install npm:@carter-mcalister/pi-mise-toolchain
+pi install npm:@carter-mcalister/pi-worktrunk
 ```
 
 For local development, you can also install from a package directory inside this monorepo:

@@ -1,48 +1,36 @@
-name: Release package
+name: Release packages
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
-      package:
-        description: Package to release
-        required: true
-        type: choice
-        options:
-          - packages/pi-skillpacks
-          - packages/pi-mise-toolchain
-          - packages/pi-worktrunk
-      release_type:
-        description: Semver bump to apply before publishing
-        required: true
-        default: patch
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
       tag:
         description: npm dist-tag to publish under
         required: true
         default: latest
         type: string
       dry_run:
-        description: Run the release without pushing, tagging, creating a GitHub release, or publishing for real
+        description: Run the release pipeline without pushing, tagging, creating GitHub releases, or publishing for real
         required: true
         default: false
         type: boolean
 
 jobs:
   release:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
     concurrency:
-      group: release-${{ inputs.package }}
+      group: release-main
       cancel-in-progress: false
     env:
-      PACKAGE_DIR: ${{ inputs.package }}
       NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+      DIST_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || 'latest' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -67,75 +55,133 @@ jobs:
       - name: Validate workspace before release
         run: bun run check
 
-      - name: Bump selected package version
-        id: bump
-        run: bun scripts/release-package.ts "$PACKAGE_DIR" "${{ inputs.release_type }}" >> "$GITHUB_OUTPUT"
+      - name: Build release plan
+        run: bun scripts/release-plan.ts > release-plan.json
 
-      - name: Refresh lockfile after version bump
-        run: bun install
-
-      - name: Validate workspace after version bump
-        run: bun run check
-
-      - name: Ensure release tag does not already exist
-        if: ${{ !inputs.dry_run }}
+      - name: Summarize release plan
+        id: plan
         run: |
-          if git rev-parse "${{ steps.bump.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Tag already exists locally: ${{ steps.bump.outputs.tag }}" >&2
-            exit 1
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.bump.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Tag already exists on origin: ${{ steps.bump.outputs.tag }}" >&2
-            exit 1
-          fi
+          COUNT=$(bun -e 'const plan = await Bun.file("release-plan.json").json(); console.log(plan.length)')
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+          echo "summary<<EOF" >> "$GITHUB_OUTPUT"
+          bun -e 'const plan = await Bun.file("release-plan.json").json(); if (plan.length === 0) { console.log("No package releases required."); } else { for (const item of plan) { console.log(item.packageName + " -> " + item.releaseType); } }'
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "## Release plan" >> "$GITHUB_STEP_SUMMARY"
+          bun -e 'const plan = await Bun.file("release-plan.json").json(); if (plan.length === 0) { console.log("- No package releases required."); } else { for (const item of plan) { console.log("- " + item.packageName + ": " + item.releaseType); } }' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Ensure npm version has not already been published
-        if: ${{ !inputs.dry_run }}
-        run: |
-          if bunx npm view "${{ steps.bump.outputs.name }}@${{ steps.bump.outputs.version }}" version >/dev/null 2>&1; then
-            echo "Version already exists on npm: ${{ steps.bump.outputs.name }}@${{ steps.bump.outputs.version }}" >&2
-            exit 1
-          fi
+      - name: Stop when there is nothing to release
+        if: steps.plan.outputs.count == '0'
+        run: echo "No changed packages since the last package tags."
 
       - name: Configure git author
-        if: ${{ !inputs.dry_run }}
+        if: steps.plan.outputs.count != '0' && env.DRY_RUN != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Commit release changes and create tag
-        if: ${{ !inputs.dry_run }}
-        run: |
-          git add "$PACKAGE_DIR/package.json" bun.lock
-          git commit -m "release(${{ steps.bump.outputs.package_basename }}): ${{ steps.bump.outputs.version }}"
-          git tag "${{ steps.bump.outputs.tag }}"
-
       - name: Configure npm authentication
+        if: steps.plan.outputs.count != '0'
         run: |
           test -n "$NPM_CONFIG_TOKEN"
           printf "//registry.npmjs.org/:_authToken=%s\n" "$NPM_CONFIG_TOKEN" > ~/.npmrc
 
-      - name: Publish package to npm
-        working-directory: ${{ env.PACKAGE_DIR }}
-        run: |
-          PUBLISH_ARGS=(publish --access public --tag "${{ inputs.tag }}" --provenance)
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            PUBLISH_ARGS+=(--dry-run)
-          fi
-          echo "Releasing ${{ steps.bump.outputs.name }}@${{ steps.bump.outputs.version }} from ${PACKAGE_DIR}"
-          bunx npm "${PUBLISH_ARGS[@]}"
-
-      - name: Push release commit and tag
-        if: ${{ !inputs.dry_run }}
-        run: |
-          git push origin HEAD:main
-          git push origin "${{ steps.bump.outputs.tag }}"
-
-      - name: Create GitHub release
-        if: ${{ !inputs.dry_run }}
+      - name: Release changed packages
+        if: steps.plan.outputs.count != '0'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.bump.outputs.tag }}" \
-            --title "${{ steps.bump.outputs.release_name }}" \
-            --generate-notes
+          set -euo pipefail
+
+          bun -e "const plan = await Bun.file('release-plan.json').json(); for (const item of plan) { console.log(Buffer.from(JSON.stringify(item)).toString('base64')); }" > release-plan-lines.txt
+
+          while IFS= read -r encoded; do
+            [ -n "$encoded" ] || continue
+
+            ITEM_JSON=$(printf '%s' "$encoded" | base64 --decode)
+            PACKAGE_DIR=$(bun -e "const item = JSON.parse(process.argv[1]); console.log(item.packageDir)" "$ITEM_JSON")
+            RELEASE_TYPE=$(bun -e "const item = JSON.parse(process.argv[1]); console.log(item.releaseType)" "$ITEM_JSON")
+
+            echo "Processing ${PACKAGE_DIR} (${RELEASE_TYPE})"
+
+            BUMP_OUTPUT=$(bun scripts/release-package.ts "$PACKAGE_DIR" "$RELEASE_TYPE")
+
+            PACKAGE_BASENAME=''
+            PACKAGE_NAME=''
+            OLD_VERSION=''
+            VERSION=''
+            TAG=''
+            RELEASE_NAME=''
+
+            while IFS='=' read -r key value; do
+              case "$key" in
+                package_basename) PACKAGE_BASENAME="$value" ;;
+                name) PACKAGE_NAME="$value" ;;
+                old_version) OLD_VERSION="$value" ;;
+                version) VERSION="$value" ;;
+                tag) TAG="$value" ;;
+                release_name) RELEASE_NAME="$value" ;;
+              esac
+            done <<< "$BUMP_OUTPUT"
+
+            bun install
+            bun run check
+
+            if git rev-parse "$TAG" >/dev/null 2>&1; then
+              echo "Tag already exists locally: $TAG" >&2
+              exit 1
+            fi
+
+            if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "Tag already exists on origin: $TAG" >&2
+              exit 1
+            fi
+
+            if bunx npm view "$PACKAGE_NAME@$VERSION" version >/dev/null 2>&1; then
+              echo "Version already exists on npm: $PACKAGE_NAME@$VERSION" >&2
+              exit 1
+            fi
+
+            git add "$PACKAGE_DIR/package.json" bun.lock
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "[dry-run] Would commit release($PACKAGE_BASENAME): $VERSION"
+            else
+              git commit -m "release($PACKAGE_BASENAME): $VERSION [skip ci]"
+              git tag "$TAG"
+            fi
+
+            echo "Publishing $PACKAGE_NAME@$VERSION from $PACKAGE_DIR"
+            PUBLISH_ARGS=(publish --access public --tag "$DIST_TAG" --provenance)
+            if [ "$DRY_RUN" = "true" ]; then
+              PUBLISH_ARGS+=(--dry-run)
+            fi
+            (
+              cd "$PACKAGE_DIR"
+              bunx npm "${PUBLISH_ARGS[@]}"
+            )
+
+            if [ "$DRY_RUN" != "true" ]; then
+              git push origin HEAD:main
+              git push origin "$TAG"
+              gh release create "$TAG" \
+                --title "$RELEASE_NAME" \
+                --generate-notes
+            fi
+
+            {
+              echo "### $PACKAGE_NAME@$VERSION"
+              echo
+              echo "- package: $PACKAGE_DIR"
+              echo "- bump: $RELEASE_TYPE"
+              echo "- previous version: $OLD_VERSION"
+              echo "- new version: $VERSION"
+              echo "- tag: $TAG"
+              echo "- dist-tag: $DIST_TAG"
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "- mode: dry-run"
+              else
+                echo "- mode: released"
+              fi
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+          done < release-plan-lines.txt

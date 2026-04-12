@@ -1,6 +1,6 @@
 {
   "name": "@carter-mcalister/pi-mise-toolchain",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Mise-driven toolchain enforcement for Pi",
   "author": "Carter McAlister",
   "repository": {

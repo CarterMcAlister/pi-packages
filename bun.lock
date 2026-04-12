@@ -4,6 +4,13 @@
   "workspaces": {
     "": {
       "name": "@cmc/pi-packages",
+      "dependencies": {
+        "@aliou/pi-utils-settings": "^0.13.0",
+        "@aliou/sh": "^0.1.0",
+        "@iarna/toml": "^2.2.5",
+        "@zenobius/pi-extension-config": "^0.2.0",
+        "typebox": "^1.0.81",
+      },
       "devDependencies": {
         "@biomejs/biome": "2.3.5",
         "@mariozechner/pi-ai": "0.64.0",

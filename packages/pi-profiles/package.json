@@ -1,6 +1,6 @@
 {
   "name": "@carter-mcalister/pi-profiles",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Session-scoped profile loader for Pi",
   "author": "Carter McAlister",
   "type": "module",

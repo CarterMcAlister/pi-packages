@@ -33,6 +33,7 @@
   "author": "Carter McAlister",
   "pi": {
     "extensions": [
+      "./packages/pi-auto-name/src/index.ts",
       "./packages/pi-skillpacks/src/skillpack-session-loader.ts",
       "./packages/pi-mise-toolchain/src/index.ts",
       "./packages/pi-worktrunk/src/index.ts"

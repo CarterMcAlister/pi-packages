@@ -1,0 +1,54 @@
+{
+  "name": "@carter-mcalister/pi-auto-name",
+  "version": "0.1.0",
+  "description": "English-only automatic session naming for Pi",
+  "author": "Carter McAlister",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CarterMcAlister/pi-packages.git",
+    "directory": "packages/pi-auto-name"
+  },
+  "bugs": {
+    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
+  },
+  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-auto-name#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "session-name",
+    "auto-name"
+  ],
+  "scripts": {
+    "format": "bunx @biomejs/biome check --write .",
+    "lint": "bunx @biomejs/biome check .",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
+    "test": "bun test",
+    "check": "bun run lint && bun run typecheck && bun run test"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.5",
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "bun-types": "latest",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}

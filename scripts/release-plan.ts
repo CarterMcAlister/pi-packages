@@ -1,10 +1,15 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 type ReleaseType = 'patch' | 'minor' | 'major'
 
 type PackageJson = {
   name?: string
   version?: string
+  private?: boolean
+}
+
+type RootPackageJson = {
+  workspaces?: string[] | { packages?: string[] }
 }
 
 type ReleasePlanItem = {
@@ -15,12 +20,6 @@ type ReleasePlanItem = {
   releaseType: ReleaseType
   previousTag: string | null
 }
-
-const PACKAGE_DIRS = [
-  'packages/pi-skillpacks',
-  'packages/pi-mise-toolchain',
-  'packages/pi-worktrunk',
-] as const
 
 function fail(message: string): never {
   throw new Error(message)
@@ -127,9 +126,47 @@ function detectReleaseType(messages: string[]): ReleaseType {
   return releaseType
 }
 
+async function getWorkspacePatterns(): Promise<string[]> {
+  const rootPackageJsonFile = Bun.file('package.json')
+
+  if (!(await rootPackageJsonFile.exists())) {
+    fail('Missing root package.json')
+  }
+
+  const rootPackageJson = (await rootPackageJsonFile.json()) as RootPackageJson
+  const workspaces = Array.isArray(rootPackageJson.workspaces)
+    ? rootPackageJson.workspaces
+    : rootPackageJson.workspaces?.packages
+
+  if (!workspaces || workspaces.length === 0) {
+    fail('No workspaces configured in root package.json')
+  }
+
+  return workspaces
+}
+
+async function getWorkspacePackageDirs(): Promise<string[]> {
+  const packageDirs = new Set<string>()
+
+  for (const workspace of await getWorkspacePatterns()) {
+    const pattern = workspace.endsWith('package.json')
+      ? workspace
+      : `${workspace.replace(/\/$/, '')}/package.json`
+
+    for await (const packageJsonPath of new Bun.Glob(pattern).scan('.')) {
+      packageDirs.add(dirname(packageJsonPath))
+    }
+  }
+
+  return Array.from(packageDirs).sort((left, right) =>
+    left.localeCompare(right),
+  )
+}
+
 async function getPackageInfo(packageDir: string): Promise<{
   packageName: string
   currentVersion: string
+  private: boolean
 }> {
   const packageJsonPath = join(packageDir, 'package.json')
   const file = Bun.file(packageJsonPath)
@@ -146,14 +183,26 @@ async function getPackageInfo(packageDir: string): Promise<{
     fail(`Package name/version missing in ${packageJsonPath}`)
   }
 
-  return { packageName, currentVersion }
+  return {
+    packageName,
+    currentVersion,
+    private: pkg.private === true,
+  }
 }
 
 async function main() {
   const plan: ReleasePlanItem[] = []
 
-  for (const packageDir of PACKAGE_DIRS) {
-    const { packageName, currentVersion } = await getPackageInfo(packageDir)
+  for (const packageDir of await getWorkspacePackageDirs()) {
+    const {
+      packageName,
+      currentVersion,
+      private: isPrivate,
+    } = await getPackageInfo(packageDir)
+
+    if (isPrivate) {
+      continue
+    }
     const previousTag = getLatestTag(packageName)
     const range = previousTag ? `${previousTag}..HEAD` : null
 

@@ -37,7 +37,8 @@
       "./packages/pi-skillpacks/src/skillpack-session-loader.ts",
       "./packages/pi-mise-toolchain/src/index.ts",
       "./packages/pi-worktrunk/src/index.ts",
-      "./packages/pi-profiles/src/index.ts"
+      "./packages/pi-profiles/src/index.ts",
+      "./packages/pi-rlm/src/index.ts"
     ]
   },
   "dependencies": {

@@ -5,6 +5,8 @@
 | Package                                | Notes                                                          |
 | -------------------------------------- | -------------------------------------------------------------- |
 | `@carter-mcalister/pi-auto-name`       | English-only automatic session naming for Pi                   |
+| `@carter-mcalister/pi-profiles`        | Session-scoped profile loader for Pi                           |
+| `@carter-mcalister/pi-rlm`             | RLM-first recursive workflows and named workflow runs for Pi   |
 | `@carter-mcalister/pi-skillpacks`      | Session-scoped skill pack loader for Pi                        |
 | `@carter-mcalister/pi-mise-toolchain`  | Mise-driven toolchain enforcement and command rewriting for Pi |
 | `@carter-mcalister/pi-worktrunk`       | Worktrunk-backed worktree management for Pi                    |
@@ -30,6 +32,8 @@ mise run check
 
 ```bash
 pi install npm:@carter-mcalister/pi-auto-name
+pi install npm:@carter-mcalister/pi-profiles
+pi install npm:@carter-mcalister/pi-rlm
 pi install npm:@carter-mcalister/pi-skillpacks
 pi install npm:@carter-mcalister/pi-mise-toolchain
 pi install npm:@carter-mcalister/pi-worktrunk

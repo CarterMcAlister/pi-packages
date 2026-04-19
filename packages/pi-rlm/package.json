@@ -1,6 +1,6 @@
 {
   "name": "@carter-mcalister/pi-rlm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "RLM-first named workflow extension for Pi Coding Agent",
   "author": "Carter McAlister",
   "type": "module",

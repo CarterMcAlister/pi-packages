@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -12,10 +12,7 @@ import {
   SessionManager,
   SettingsManager,
 } from '@mariozechner/pi-coding-agent'
-import {
-  PROFILE_LOAD_COMMAND,
-  PROFILE_STATE_ENTRY_TYPE,
-} from '../src/constants'
+import { PROFILE_STATE_ENTRY_TYPE, PROFILES_COMMAND } from '../src/constants'
 import { loadProfileExtensionsIntoPi } from '../src/extension-loader'
 import { createPiProfiles } from '../src/index'
 import { resolveProfileResources } from '../src/resource-resolution'
@@ -74,10 +71,15 @@ function createCommandContext(
   branchEntries: unknown[] = [],
   options: {
     selection?: string
+    inputs?: Array<string | undefined>
+    customResults?: unknown[]
   } = {},
 ) {
   const notifications: Array<{ message: string; level: string }> = []
+  const customRenders: string[][] = []
   let reloaded = false
+  const pendingInputs = [...(options.inputs ?? [])]
+  const pendingCustomResults = [...(options.customResults ?? [])]
 
   const ctx = {
     cwd,
@@ -94,11 +96,29 @@ function createCommandContext(
         notifications.push({ message, level })
       },
       setStatus() {},
+      setWorkingMessage() {},
       setTheme() {
         return { success: true }
       },
       async select() {
         return options.selection
+      },
+      async input() {
+        return pendingInputs.shift()
+      },
+      async custom(factory: unknown) {
+        const component = await (factory as any)(
+          { requestRender() {} },
+          {
+            fg: (_color: string, text: string) => text,
+            bold: (text: string) => text,
+          },
+          {},
+          () => {},
+        )
+
+        customRenders.push(component.render(120))
+        return pendingCustomResults.shift()
       },
     },
     reload: async () => {
@@ -109,6 +129,7 @@ function createCommandContext(
   return {
     ctx,
     notifications,
+    customRenders,
     get reloaded() {
       return reloaded
     },
@@ -222,7 +243,52 @@ test('resolveProfileResources resolves local resources and skillpacks', async ()
   expect(resources.skillPaths).toEqual([skillPath])
 })
 
-test('profile-load persists active profile and reloads the session', async () => {
+test('resolveProfileResources can select individual skills from a skillpack', async () => {
+  const reviewerSkillPath = await writeSkill(skillpackRoot, 'helpers/reviewer')
+  const plannerSkillPath = await writeSkill(skillpackRoot, 'helpers/planner')
+
+  await writeProfile(globalProfilesRoot, 'dev', {
+    skillpacks: [
+      {
+        path: 'helpers',
+        skills: ['reviewer'],
+      },
+    ],
+  })
+
+  const resources = await resolveProfileResources(
+    {
+      scope: 'user',
+      name: 'dev',
+      rootDir: globalProfilesRoot,
+      profileDir: join(globalProfilesRoot, 'dev'),
+      settingsPath: join(globalProfilesRoot, 'dev', 'settings.json'),
+    },
+    {
+      cwd: projectRoot,
+      agentDir,
+      skillpackRoot,
+    },
+  )
+
+  expect(resources.skillPaths).toContain(reviewerSkillPath)
+  expect(resources.skillPaths).not.toContain(plannerSkillPath)
+})
+
+test('registers only the /profiles command', async () => {
+  const fakePi = createFakePi()
+
+  await createPiProfiles({
+    agentDir,
+    globalRoot: globalProfilesRoot,
+    projectRoot: projectProfilesRoot,
+    skillpackRoot,
+  })(fakePi.api)
+
+  expect(Array.from(fakePi.commands.keys())).toEqual([PROFILES_COMMAND])
+})
+
+test('/profiles <name> persists active profile and reloads the session', async () => {
   const fakePi = createFakePi()
   await writeProfile(globalProfilesRoot, 'dev', {})
   await createPiProfiles({
@@ -232,13 +298,13 @@ test('profile-load persists active profile and reloads the session', async () =>
     skillpackRoot,
   })(fakePi.api)
 
-  const command = fakePi.commands.get(PROFILE_LOAD_COMMAND)
+  const command = fakePi.commands.get(PROFILES_COMMAND)
   const context = createCommandContext(projectRoot)
 
   expect(command).toBeDefined()
 
   if (!command) {
-    throw new Error('Expected profile-load to be registered')
+    throw new Error('Expected /profiles to be registered')
   }
 
   await command.handler('user:dev', context.ctx)
@@ -256,7 +322,45 @@ test('profile-load persists active profile and reloads the session', async () =>
   })
 })
 
-test('profile-load works through the documented SDK setup', async () => {
+test('/profiles none unloads the active profile', async () => {
+  const fakePi = createFakePi()
+  await writeProfile(globalProfilesRoot, 'dev', {})
+  await createPiProfiles({
+    agentDir,
+    globalRoot: globalProfilesRoot,
+    projectRoot: projectProfilesRoot,
+    skillpackRoot,
+  })(fakePi.api)
+
+  const command = fakePi.commands.get(PROFILES_COMMAND)
+  const context = createCommandContext(projectRoot, [
+    {
+      type: 'custom',
+      customType: PROFILE_STATE_ENTRY_TYPE,
+      data: createProfileState({ scope: 'user', name: 'dev' }),
+    },
+  ])
+
+  expect(command).toBeDefined()
+
+  if (!command) {
+    throw new Error('Expected /profiles to be registered')
+  }
+
+  await command.handler('none', context.ctx)
+
+  expect(fakePi.appended.at(-1)).toEqual({
+    customType: PROFILE_STATE_ENTRY_TYPE,
+    data: createProfileState(null),
+  })
+  expect(context.reloaded).toBe(true)
+  expect(context.notifications.at(-1)).toEqual({
+    message: 'Unloaded profile "user:dev". Reloading…',
+    level: 'info',
+  })
+})
+
+test('/profiles works through the documented SDK setup', async () => {
   await writeSkill(skillpackRoot, 'helpers/planner')
   await writeProfile(globalProfilesRoot, 'dev', {
     skillpacks: ['helpers'],
@@ -286,7 +390,7 @@ test('profile-load works through the documented SDK setup', async () => {
     sessionManager: SessionManager.inMemory(projectRoot),
   })
 
-  await session.prompt('/profile-load user:dev')
+  await session.prompt('/profiles user:dev')
 
   const lastProfileState = session.sessionManager
     .getEntries()
@@ -304,7 +408,7 @@ test('profile-load works through the documented SDK setup', async () => {
   session.dispose()
 })
 
-test('profile-load overlays standard settings and passes through mcp-style fields', async () => {
+test('/profiles overlays standard settings and passes through mcp-style fields', async () => {
   await writeProfile(globalProfilesRoot, 'ops', {
     compaction: {
       enabled: false,
@@ -357,7 +461,7 @@ test('profile-load overlays standard settings and passes through mcp-style field
     sessionManager: SessionManager.inMemory(projectRoot),
   })
 
-  await session.prompt('/profile-load user:ops')
+  await session.prompt('/profiles user:ops')
 
   expect(session.settingsManager.getCompactionEnabled()).toBe(false)
   expect(session.settingsManager.getCompactionReserveTokens()).toBe(8192)
@@ -381,6 +485,115 @@ test('profile-load overlays standard settings and passes through mcp-style field
   })
 
   session.dispose()
+})
+
+test('/profiles picker shows profile description when set', async () => {
+  const fakePi = createFakePi()
+
+  await writeProfile(globalProfilesRoot, 'described', {
+    description: 'Useful reviewer workflow',
+  })
+  await createPiProfiles({
+    agentDir,
+    globalRoot: globalProfilesRoot,
+    projectRoot: projectProfilesRoot,
+    skillpackRoot,
+  })(fakePi.api)
+
+  const command = fakePi.commands.get(PROFILES_COMMAND)
+  const context = createCommandContext(projectRoot, [], {
+    customResults: [{ type: 'cancel' }],
+  })
+
+  expect(command).toBeDefined()
+
+  if (!command) {
+    throw new Error('Expected /profiles to be registered')
+  }
+
+  await command.handler('', context.ctx)
+
+  expect(context.customRenders.flat().join('\n')).toContain(
+    'Useful reviewer workflow',
+  )
+})
+
+test('/profiles UI can copy the hovered profile', async () => {
+  const fakePi = createFakePi()
+  const sourceSettings = {
+    defaultThinkingLevel: 'high',
+    skillpacks: ['helpers'],
+    prompts: ['./prompt-dir'],
+  }
+
+  await writeProfile(globalProfilesRoot, 'source', sourceSettings)
+  await createPiProfiles({
+    agentDir,
+    globalRoot: globalProfilesRoot,
+    projectRoot: projectProfilesRoot,
+    skillpackRoot,
+  })(fakePi.api)
+
+  const command = fakePi.commands.get(PROFILES_COMMAND)
+  const context = createCommandContext(projectRoot, [], {
+    customResults: [{ type: 'copy', value: 'user:source' }, { type: 'cancel' }],
+    inputs: ['project:copied'],
+  })
+
+  expect(command).toBeDefined()
+
+  if (!command) {
+    throw new Error('Expected /profiles to be registered')
+  }
+
+  await command.handler('', context.ctx)
+
+  const copiedPath = join(projectProfilesRoot, 'copied', 'settings.json')
+  expect(await readFile(copiedPath, 'utf8')).toEqual(
+    `${JSON.stringify(sourceSettings, null, 2)}\n`,
+  )
+  expect(context.notifications.at(-1)).toEqual({
+    message: 'Copied profile "user:source" to "project:copied".',
+    level: 'info',
+  })
+})
+
+test('/profiles UI copy can be cancelled at the name prompt', async () => {
+  const fakePi = createFakePi()
+  const sourceSettings = {
+    defaultThinkingLevel: 'high',
+  }
+
+  await writeProfile(globalProfilesRoot, 'source', sourceSettings)
+  await createPiProfiles({
+    agentDir,
+    globalRoot: globalProfilesRoot,
+    projectRoot: projectProfilesRoot,
+    skillpackRoot,
+  })(fakePi.api)
+
+  const command = fakePi.commands.get(PROFILES_COMMAND)
+  const context = createCommandContext(projectRoot, [], {
+    customResults: [{ type: 'copy', value: 'user:source' }, { type: 'cancel' }],
+    inputs: [undefined],
+  })
+
+  expect(command).toBeDefined()
+
+  if (!command) {
+    throw new Error('Expected /profiles to be registered')
+  }
+
+  await command.handler('', context.ctx)
+
+  await expect(
+    readFile(join(projectProfilesRoot, 'source-copy', 'settings.json'), 'utf8'),
+  ).rejects.toThrow()
+  expect(
+    context.notifications.some((notification) =>
+      notification.message.includes('Copied profile'),
+    ),
+  ).toBe(false)
 })
 
 test('resources_discover returns the active profile skill/theme/prompt paths', async () => {

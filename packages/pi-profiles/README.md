@@ -40,10 +40,14 @@ Project profiles win over global profiles when the same name exists in both plac
 
 ## Commands
 
-- `/profile-create <name>`
-- `/profile-load <name>`
-- `/profile-unload`
-- `/profiles`
+- `/profiles` — open the profiles UI
+- `/profiles <name>` — load a profile directly
+- `/profiles none` — unload the active profile
+
+Inside the `/profiles` UI:
+
+- `n` creates a new profile
+- `e` opens the currently selected profile `settings.json` in your external editor
 
 Names can be scoped explicitly:
 
@@ -60,6 +64,7 @@ Example:
 
 ```json
 {
+  "description": "General-purpose project workflow with reviewer tools",
   "packages": [
     "npm:@carter-mcalister/pi-worktrunk"
   ],
@@ -74,7 +79,11 @@ Example:
   ],
   "skillpacks": [
     "superpowers",
-    "helpers/reviewer"
+    {
+      "path": "helpers",
+      "skills": ["reviewer"]
+    },
+    "legacy-pack/planner"
   ],
   "theme": "dark",
   "defaultThinkingLevel": "high",
@@ -107,6 +116,14 @@ Example:
 It also supports:
 
 - `skillpacks` (custom field, resolved from `~/.pi/agent/skillpacks`)
+
+If `description` is set, the `/profiles` picker shows it instead of the raw `settings.json` path.
+
+`skillpacks` entries can be either:
+
+- a string like `"superpowers"` to include an entire skillpack
+- a string like `"helpers/reviewer"` to include one nested skill directly
+- an object like `{ "path": "helpers", "skills": ["reviewer", "planner"] }` to include selected skills from a skillpack explicitly
 
 Relative paths in a profile resolve relative to that profile directory.
 
@@ -145,6 +162,7 @@ Other settings flow through the session settings overlay and are available to Pi
 
 - `skillpacks` is the only built-in custom field. Everything else should follow normal Pi `settings.json` semantics.
 - Loading or unloading a profile always reloads the current session.
+- Creating a profile from the UI writes a starter `settings.json` and keeps the picker open.
 - Profile selection is session-scoped.
 - Profile extensions are bootstrapped before reload finishes so their normal Pi lifecycle hooks can participate.
 - MCP loading depends on the MCP-capable runtime or extension you use. `pi-profiles` passes MCP-style config through the effective Pi settings overlay; it does not implement an MCP client by itself.

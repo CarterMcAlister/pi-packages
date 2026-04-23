@@ -15,13 +15,19 @@ export interface SerializedProfileRef {
   name: string
 }
 
+export interface ProfileSkillpackSelection {
+  path: string
+  skills?: string[]
+}
+
 export interface ProfileSettings {
+  description?: string
   packages?: PackageSource[]
   extensions?: string[]
   skills?: string[]
   prompts?: string[]
   themes?: string[]
-  skillpacks?: string[]
+  skillpacks?: Array<string | ProfileSkillpackSelection>
   theme?: string
   defaultProvider?: string
   defaultModel?: string

@@ -40,7 +40,8 @@
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*"
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
   },
   "dependencies": {
     "@mariozechner/jiti": "^2.6.5"
@@ -48,6 +49,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.5",
     "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
     "bun-types": "latest",
     "typescript": "^5.9.3"
   },

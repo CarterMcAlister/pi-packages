@@ -2,7 +2,12 @@ import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import type { PackageSource } from '@mariozechner/pi-coding-agent'
 import { PROFILE_SETTINGS_FILE } from './constants'
-import type { LoadedProfile, ProfileRef, ProfileSettings } from './types'
+import type {
+  LoadedProfile,
+  ProfileRef,
+  ProfileSettings,
+  ProfileSkillpackSelection,
+} from './types'
 
 const URL_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
 const WINDOWS_ABSOLUTE_PATH = /^[a-zA-Z]:[\\/]/
@@ -29,6 +34,62 @@ function normalizeStringArray(
   }
 
   return value
+}
+
+function normalizeOptionalString(
+  value: unknown,
+  fieldName: string,
+): string | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (typeof value !== 'string') {
+    throw new Error(
+      `${PROFILE_SETTINGS_FILE}: "${fieldName}" must be a string.`,
+    )
+  }
+
+  return value
+}
+
+function normalizeSkillpacks(
+  value: unknown,
+): Array<string | ProfileSkillpackSelection> | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${PROFILE_SETTINGS_FILE}: "skillpacks" must be an array.`)
+  }
+
+  return value.map((entry, index) => {
+    if (typeof entry === 'string') {
+      return entry
+    }
+
+    if (!isObject(entry) || typeof entry.path !== 'string') {
+      throw new Error(
+        `${PROFILE_SETTINGS_FILE}: "skillpacks[${index}]" must be a string or an object with a string "path" field.`,
+      )
+    }
+
+    if (
+      entry.skills !== undefined &&
+      (!Array.isArray(entry.skills) ||
+        entry.skills.some((skill) => typeof skill !== 'string'))
+    ) {
+      throw new Error(
+        `${PROFILE_SETTINGS_FILE}: "skillpacks[${index}].skills" must be an array of strings.`,
+      )
+    }
+
+    return {
+      path: entry.path,
+      skills: entry.skills as string[] | undefined,
+    }
+  })
 }
 
 function normalizePackages(value: unknown): PackageSource[] | undefined {
@@ -121,12 +182,13 @@ export async function readProfileSettings(
 
   const settings: ProfileSettings = {
     ...parsed,
+    description: normalizeOptionalString(parsed.description, 'description'),
     packages: normalizePackages(parsed.packages),
     extensions: normalizeStringArray(parsed.extensions, 'extensions'),
     skills: normalizeStringArray(parsed.skills, 'skills'),
     prompts: normalizeStringArray(parsed.prompts, 'prompts'),
     themes: normalizeStringArray(parsed.themes, 'themes'),
-    skillpacks: normalizeStringArray(parsed.skillpacks, 'skillpacks'),
+    skillpacks: normalizeSkillpacks(parsed.skillpacks),
   }
 
   return {
@@ -208,6 +270,7 @@ export function resolveProfilePackageSources(
 export function createProfileTemplate(): string {
   return `${JSON.stringify(
     {
+      description: '',
       packages: [],
       extensions: [],
       skills: [],

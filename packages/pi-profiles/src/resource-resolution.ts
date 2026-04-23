@@ -14,7 +14,7 @@ import {
 } from './profile-settings'
 import {
   getDefaultSkillpackRoot,
-  normalizeSkillpackPath,
+  resolveProfileSkillpackSelections,
   resolveSelectedSkillpackEntryPoints,
 } from './skillpacks'
 import type {
@@ -52,8 +52,8 @@ async function ensureLocalBundleDir(
     profile.settings.themes,
   )
 
-  const skillpacks = Array.from(
-    new Set((profile.settings.skillpacks ?? []).map(normalizeSkillpackPath)),
+  const skillpacks = resolveProfileSkillpackSelections(
+    profile.settings.skillpacks ?? [],
   )
 
   const skillpackSkillPaths = await resolveSelectedSkillpackEntryPoints(

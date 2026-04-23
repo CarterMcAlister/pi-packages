@@ -2,6 +2,7 @@ import type { Dirent } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
+import type { ProfileSkillpackSelection } from './types'
 
 const SKILL_FILE_NAME = 'SKILL.md'
 const WINDOWS_ABSOLUTE_PATH = /^[a-zA-Z]:[\\/]/
@@ -86,6 +87,32 @@ async function scanSkillDirectory(
     ...(containsSkill ? [join(absoluteDir, SKILL_FILE_NAME)] : []),
     ...childSkillPaths.flat(),
   ].sort((left, right) => left.localeCompare(right))
+}
+
+export function resolveProfileSkillpackSelections(
+  selections: Array<string | ProfileSkillpackSelection>,
+): string[] {
+  const resolved = new Set<string>()
+
+  for (const selection of selections) {
+    if (typeof selection === 'string') {
+      resolved.add(normalizeSkillpackPath(selection))
+      continue
+    }
+
+    const rootPath = normalizeSkillpackPath(selection.path)
+
+    if (!selection.skills || selection.skills.length === 0) {
+      resolved.add(rootPath)
+      continue
+    }
+
+    for (const skill of selection.skills) {
+      resolved.add(normalizeSkillpackPath(`${rootPath}/${skill}`))
+    }
+  }
+
+  return Array.from(resolved).sort((left, right) => left.localeCompare(right))
 }
 
 export async function resolveSelectedSkillpackEntryPoints(

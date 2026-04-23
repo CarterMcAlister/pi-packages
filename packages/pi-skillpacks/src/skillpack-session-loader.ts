@@ -1,12 +1,9 @@
-import type { Stats } from 'node:fs'
-import { stat } from 'node:fs/promises'
 import type {
   ExtensionAPI,
   ExtensionContext,
   Theme,
 } from '@mariozechner/pi-coding-agent'
 import {
-  type AutocompleteItem,
   type Component,
   Key,
   matchesKey,
@@ -23,19 +20,23 @@ import {
   type SkillpackBrowserItem,
   type SkillpackBrowserStatus,
 } from './browser'
-import { getAddCompletions, getRemoveCompletions } from './completions'
 import {
-  ADD_COMMAND,
   getDefaultSkillpackRoot,
-  REMOVE_COMMAND,
   SKILLPACKS_COMMAND,
+  SKILLPACKS_INSTALL_COMMAND,
+  SKILLPACKS_SEARCH_COMMAND,
   STATE_ENTRY_TYPE,
 } from './constants'
+import { resolveSelectedSkillEntryPoints } from './discovery'
 import {
-  discoverSkillEntryPoints,
-  resolveSelectedSkillEntryPoints,
-} from './discovery'
-import { normalizeSkillpackPath, resolveSkillpackDirectory } from './paths'
+  defaultSkillpackGitHubClient,
+  directoryHasEntries,
+  type GhSkillSearchResult,
+  getSkillpackDirectoryName,
+  getSkillpackInstallDirectory,
+  parseGitHubRepoReference,
+  type SkillpackGitHubClient,
+} from './github-skills'
 import {
   createSkillpackState,
   restoreSelectedPathsFromEntries,
@@ -44,6 +45,7 @@ import {
 
 interface SkillpackSessionLoaderOptions {
   rootDir?: string
+  ghClient?: SkillpackGitHubClient
 }
 
 function pluralize(count: number, noun: string): string {
@@ -127,6 +129,104 @@ function sameSelections(current: Set<string>, next: string[]): boolean {
   }
 
   return true
+}
+
+function formatQualifiedSkillName(result: GhSkillSearchResult): string {
+  return result.namespace
+    ? `${result.namespace}/${result.skillName}`
+    : result.skillName
+}
+
+function formatStars(stars: number): string {
+  if (stars >= 1000) {
+    return `${(stars / 1000).toFixed(1)}k`
+  }
+
+  return String(stars)
+}
+
+interface SkillSearchRepoOption {
+  repo: string
+  stars: number
+  skills: string[]
+  description: string
+}
+
+function groupSkillSearchResults(
+  results: GhSkillSearchResult[],
+): SkillSearchRepoOption[] {
+  const grouped = new Map<string, SkillSearchRepoOption>()
+
+  for (const result of results) {
+    const key = result.repo.trim()
+    if (!key) continue
+
+    const existing = grouped.get(key)
+    const skillName = formatQualifiedSkillName(result)
+
+    if (existing) {
+      existing.stars = Math.max(existing.stars, result.stars)
+      if (!existing.skills.includes(skillName)) {
+        existing.skills.push(skillName)
+      }
+      if (!existing.description && result.description.trim()) {
+        existing.description = result.description.trim()
+      }
+      continue
+    }
+
+    grouped.set(key, {
+      repo: key,
+      stars: result.stars,
+      skills: [skillName],
+      description: result.description.trim(),
+    })
+  }
+
+  return Array.from(grouped.values())
+    .map((entry) => ({
+      ...entry,
+      skills: entry.skills.sort((left, right) => left.localeCompare(right)),
+    }))
+    .sort(
+      (left, right) =>
+        right.stars - left.stars || left.repo.localeCompare(right.repo),
+    )
+}
+
+function formatSkillSearchRepoOption(option: SkillSearchRepoOption): string {
+  const starSummary =
+    option.stars > 0 ? ` • ★ ${formatStars(option.stars)}` : ''
+  const skillSummary = option.skills.slice(0, 3).join(', ')
+  const remaining = option.skills.length - Math.min(option.skills.length, 3)
+  const suffix = remaining > 0 ? `, +${remaining} more` : ''
+  const description = option.description ? ` — ${option.description}` : ''
+
+  return `${option.repo}${starSummary} • ${pluralize(option.skills.length, 'match')} • ${skillSummary}${suffix}${description}`
+}
+
+const SKILLS_INSTALL_STATUS_KEY = 'skills-install'
+const SKILLS_SEARCH_STATUS_KEY = 'skills-search'
+
+function setLoadingState(
+  ctx: ExtensionContext,
+  key: string,
+  status: string,
+  workingMessage = status,
+): void {
+  ctx.ui.setStatus(key, status)
+  ctx.ui.setWorkingMessage(workingMessage)
+}
+
+async function reloadSession(ctx: ExtensionContext): Promise<void> {
+  const reload = (ctx as ExtensionContext & { reload?: () => Promise<void> })
+    .reload
+
+  if (!reload) {
+    throw new Error('Pi reload is unavailable in this context.')
+  }
+
+  await reload()
 }
 
 class SkillpacksDialog implements Component {
@@ -676,6 +776,7 @@ export function createSkillpackSessionLoader(
   options: SkillpackSessionLoaderOptions = {},
 ) {
   const rootDir = options.rootDir ?? getDefaultSkillpackRoot()
+  const ghClient = options.ghClient ?? defaultSkillpackGitHubClient
 
   return function skillpackSessionLoader(pi: ExtensionAPI) {
     let selectedPaths = new Set<string>()
@@ -692,32 +793,109 @@ export function createSkillpackSessionLoader(
       pi.appendEntry(STATE_ENTRY_TYPE, createSkillpackState(selectedPaths))
     }
 
-    async function ensureExistingDirectory(rawInput: string) {
-      const resolved = resolveSkillpackDirectory(rootDir, rawInput)
+    async function installSkillpackFromRepository(
+      rawRepoInput: string,
+      ctx: ExtensionContext,
+    ) {
+      const repo = parseGitHubRepoReference(rawRepoInput)
+      const skillpackPath = getSkillpackDirectoryName(repo.canonical)
+      const targetDir = getSkillpackInstallDirectory(rootDir, repo.canonical)
 
-      let stats: Stats
+      setLoadingState(
+        ctx,
+        SKILLS_INSTALL_STATUS_KEY,
+        `Checking destination for ${repo.canonical}`,
+        `Preparing ${repo.canonical} for installation...`,
+      )
+      const targetHasEntries = await directoryHasEntries(targetDir)
 
-      try {
-        stats = await stat(resolved.absolutePath)
-      } catch (error) {
-        const errno = error as NodeJS.ErrnoException
+      let force = false
 
-        if (errno.code === 'ENOENT') {
-          throw new Error(
-            `Skill pack "${resolved.logicalPath}" does not exist.`,
-          )
+      if (targetHasEntries) {
+        setLoadingState(
+          ctx,
+          SKILLS_INSTALL_STATUS_KEY,
+          `Awaiting overwrite confirmation for ${repo.canonical}`,
+          `Reviewing existing skillpack for ${repo.canonical}...`,
+        )
+        const confirmed = await ctx.ui.confirm(
+          'Overwrite existing skillpack?',
+          `The skillpack directory ${targetDir} already exists. Overwrite matching installed skills?`,
+        )
+
+        if (!confirmed) {
+          ctx.ui.setStatus(SKILLS_INSTALL_STATUS_KEY, undefined)
+          ctx.ui.setWorkingMessage()
+          ctx.ui.notify('Skillpack installation cancelled.', 'info')
+          return
         }
 
-        throw error
+        force = true
       }
 
-      if (!stats.isDirectory()) {
-        throw new Error(
-          `Skill pack "${resolved.logicalPath}" is not a directory.`,
+      try {
+        setLoadingState(
+          ctx,
+          SKILLS_INSTALL_STATUS_KEY,
+          `Discovering skills in ${repo.canonical}`,
+          `Finding installable skills in ${repo.canonical}...`,
         )
-      }
+        const skillPaths = await ghClient.discoverRepoSkillPaths(repo.canonical)
 
-      return resolved
+        if (skillPaths.length === 0) {
+          ctx.ui.notify(`No skills found in "${repo.canonical}".`, 'warning')
+          return
+        }
+
+        for (let index = 0; index < skillPaths.length; index += 1) {
+          const skillPath = skillPaths[index]
+          if (!skillPath) continue
+
+          setLoadingState(
+            ctx,
+            SKILLS_INSTALL_STATUS_KEY,
+            `Installing ${repo.canonical} (${index + 1}/${skillPaths.length})`,
+            `Installing skill ${index + 1} of ${skillPaths.length} from ${repo.canonical}...`,
+          )
+          await ghClient.installSkill(repo.canonical, skillPath, targetDir, {
+            force,
+          })
+        }
+
+        refreshSelectedPaths(ctx)
+        const wasAlreadyActive = selectedPaths.has(skillpackPath)
+
+        if (!wasAlreadyActive) {
+          selectedPaths.add(skillpackPath)
+          persistSelectedPaths()
+        }
+
+        setLoadingState(
+          ctx,
+          SKILLS_INSTALL_STATUS_KEY,
+          `Reloading session with ${skillpackPath}`,
+          `Reloading Pi with ${skillpackPath} enabled...`,
+        )
+        await reloadSession(ctx)
+
+        ctx.ui.notify(
+          wasAlreadyActive
+            ? `Installed ${pluralize(skillPaths.length, 'skill')} from "${repo.canonical}" and refreshed active skillpack "${skillpackPath}".`
+            : `Installed ${pluralize(skillPaths.length, 'skill')} from "${repo.canonical}" and enabled skillpack "${skillpackPath}" for this session.`,
+          'info',
+        )
+      } finally {
+        ctx.ui.setStatus(SKILLS_INSTALL_STATUS_KEY, undefined)
+        ctx.ui.setWorkingMessage()
+      }
+    }
+
+    async function promptForRepositoryToInstall(ctx: ExtensionContext) {
+      const repoInput = await ctx.ui.input(
+        'Install skillpack from GitHub repository',
+        'owner/repo',
+      )
+      return repoInput?.trim() ?? ''
     }
 
     pi.on('session_start', async (_event, ctx) => {
@@ -739,88 +917,101 @@ export function createSkillpackSessionLoader(
       return skillPaths.length > 0 ? { skillPaths } : undefined
     })
 
-    pi.registerCommand(ADD_COMMAND, {
-      description: 'Load a skill pack into the current session',
-      getArgumentCompletions: ((prefix) =>
-        getAddCompletions(rootDir, prefix) as unknown as
-          | AutocompleteItem[]
-          | null) as (argumentPrefix: string) => AutocompleteItem[] | null,
+    pi.registerCommand(SKILLPACKS_INSTALL_COMMAND, {
+      description:
+        'Install every skill from a GitHub repo into a local skillpack and enable it',
       handler: async (args, ctx) => {
-        const rawPath = args.trim()
+        const rawRepo = args.trim() || (await promptForRepositoryToInstall(ctx))
 
-        if (!rawPath) {
-          ctx.ui.notify(`Usage: /${ADD_COMMAND} <path>`, 'warning')
+        if (!rawRepo) {
+          ctx.ui.notify(
+            `Usage: /${SKILLPACKS_INSTALL_COMMAND} <owner/repo>`,
+            'warning',
+          )
           return
         }
 
         try {
-          refreshSelectedPaths(ctx)
-
-          const { logicalPath, absolutePath } =
-            await ensureExistingDirectory(rawPath)
-          const skillPaths = await discoverSkillEntryPoints(absolutePath)
-
-          if (skillPaths.length === 0) {
-            ctx.ui.notify(`No skills found under "${logicalPath}".`, 'warning')
-            return
-          }
-
-          if (selectedPaths.has(logicalPath)) {
-            ctx.ui.notify(`"${logicalPath}" is already active.`, 'info')
-            return
-          }
-
-          selectedPaths.add(logicalPath)
-          persistSelectedPaths()
-          ctx.ui.notify(
-            `Added "${logicalPath}" (${pluralize(skillPaths.length, 'skill')}). Reloading…`,
-            'info',
-          )
-          await ctx.reload()
-          return
+          await installSkillpackFromRepository(rawRepo, ctx)
         } catch (error) {
+          ctx.ui.setStatus(SKILLS_INSTALL_STATUS_KEY, undefined)
+          ctx.ui.setWorkingMessage()
           const message = error instanceof Error ? error.message : String(error)
           ctx.ui.notify(message, 'error')
         }
       },
     })
 
-    pi.registerCommand(REMOVE_COMMAND, {
-      description: 'Unload a skill pack from the current session',
-      getArgumentCompletions: (prefix) =>
-        getRemoveCompletions(selectedPaths, prefix),
+    pi.registerCommand(SKILLPACKS_SEARCH_COMMAND, {
+      description: 'Search GitHub skills, choose a repo, and install it',
       handler: async (args, ctx) => {
-        const rawPath = args.trim()
+        const initialQuery = args.trim()
+        const query =
+          initialQuery ||
+          (await ctx.ui.input('Search GitHub skills', 'terraform'))?.trim() ||
+          ''
 
-        if (!rawPath) {
-          ctx.ui.notify(`Usage: /${REMOVE_COMMAND} <path>`, 'warning')
+        if (!query) {
+          ctx.ui.notify(
+            `Usage: /${SKILLPACKS_SEARCH_COMMAND} <query>`,
+            'warning',
+          )
           return
         }
 
         try {
-          refreshSelectedPaths(ctx)
+          setLoadingState(
+            ctx,
+            SKILLS_SEARCH_STATUS_KEY,
+            `Searching GitHub for ${query}`,
+            `Searching GitHub skills for "${query}"...`,
+          )
 
-          const logicalPath = normalizeSkillpackPath(rawPath)
+          const searchResults = await ghClient.searchSkills(query, 30)
+          const repoOptions = groupSkillSearchResults(searchResults)
 
-          if (!selectedPaths.has(logicalPath)) {
-            ctx.ui.notify(
-              `"${logicalPath}" is not active in this session.`,
-              'warning',
-            )
+          if (repoOptions.length === 0) {
+            ctx.ui.notify(`No skills found for "${query}".`, 'warning')
             return
           }
 
-          selectedPaths.delete(logicalPath)
-          persistSelectedPaths()
-          ctx.ui.notify(
-            `Removed "${logicalPath}" (${pluralize(selectedPaths.size, 'selection')} remaining). Reloading…`,
-            'info',
+          ctx.ui.setStatus(
+            SKILLS_SEARCH_STATUS_KEY,
+            `Found ${repoOptions.length} matching ${repoOptions.length === 1 ? 'repository' : 'repositories'} for ${query}`,
           )
-          await ctx.reload()
-          return
+          ctx.ui.setWorkingMessage()
+
+          const labels = repoOptions.map(formatSkillSearchRepoOption)
+          const selectedLabel = await ctx.ui.select(
+            'Select a skill repo to install as a skillpack',
+            labels,
+          )
+
+          if (!selectedLabel) {
+            ctx.ui.notify('Skill search cancelled.', 'info')
+            return
+          }
+
+          const selectedIndex = labels.indexOf(selectedLabel)
+          const selectedRepo =
+            selectedIndex >= 0 ? repoOptions[selectedIndex]?.repo : undefined
+
+          if (!selectedRepo) {
+            ctx.ui.notify('Could not resolve the selected repository.', 'error')
+            return
+          }
+
+          ctx.ui.setStatus(
+            SKILLS_SEARCH_STATUS_KEY,
+            `Selected ${selectedRepo} from search results`,
+          )
+          await installSkillpackFromRepository(selectedRepo, ctx)
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
           ctx.ui.notify(message, 'error')
+        } finally {
+          ctx.ui.setStatus(SKILLS_SEARCH_STATUS_KEY, undefined)
+          ctx.ui.setWorkingMessage()
         }
       },
     })
@@ -865,7 +1056,7 @@ export function createSkillpackSessionLoader(
           `Updated skillpack selections (${pluralize(selectedPaths.size, 'selection')}). Reloading…`,
           'info',
         )
-        await ctx.reload()
+        await reloadSession(ctx)
         return
       },
     })

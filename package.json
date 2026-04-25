@@ -38,7 +38,8 @@
       "./packages/pi-mise-toolchain/src/index.ts",
       "./packages/pi-worktrunk/src/index.ts",
       "./packages/pi-profiles/src/index.ts",
-      "./packages/pi-rlm/src/index.ts"
+      "./packages/pi-rlm/src/index.ts",
+      "./packages/pi-protected-files/src/index.ts"
     ]
   },
   "dependencies": {

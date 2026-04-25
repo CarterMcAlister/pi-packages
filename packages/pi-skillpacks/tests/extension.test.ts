@@ -113,6 +113,7 @@ function createFakeGhClient(
 function createCommandContext(
   branchEntries: unknown[],
   options: {
+    cwd?: string
     customResult?: string[] | null
     inputResult?: string | undefined
     selectResult?: string | undefined
@@ -130,6 +131,7 @@ function createCommandContext(
   let reloaded = false
 
   const ctx = {
+    cwd: options.cwd ?? process.cwd(),
     sessionManager: {
       getBranch: () => branchEntries,
     },
@@ -451,6 +453,45 @@ test('resources_discover returns the union of overlapping selections', async () 
       },
     },
   ])
+
+  expect(resourcesDiscover).toBeDefined()
+
+  if (!resourcesDiscover) {
+    throw new Error('Expected resources_discover handler to be registered')
+  }
+
+  const result = await resourcesDiscover({ reason: 'startup' }, context.ctx)
+
+  expect(
+    toRelativePaths(rootDir, (result as { skillPaths: string[] }).skillPaths),
+  ).toEqual([
+    'superpowers/agent-browser/SKILL.md',
+    'superpowers/planner/SKILL.md',
+  ])
+})
+
+test('resources_discover loads global settings skillpacks using profile format', async () => {
+  const fakePi = createFakePi()
+  createSkillpackSessionLoader({ rootDir, agentDir: rootDir })(fakePi.api)
+  await writeFile(
+    join(rootDir, 'settings.json'),
+    `${JSON.stringify(
+      {
+        skillpacks: [
+          {
+            path: 'superpowers',
+            skills: ['agent-browser'],
+          },
+          'superpowers/planner',
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  )
+
+  const resourcesDiscover = fakePi.events.get('resources_discover')
+  const context = createCommandContext([], { cwd: rootDir })
 
   expect(resourcesDiscover).toBeDefined()
 

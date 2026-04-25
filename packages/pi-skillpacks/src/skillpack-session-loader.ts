@@ -1,7 +1,9 @@
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-  Theme,
+import {
+  type ExtensionAPI,
+  type ExtensionContext,
+  getAgentDir,
+  SettingsManager,
+  type Theme,
 } from '@mariozechner/pi-coding-agent'
 import {
   type Component,
@@ -37,6 +39,7 @@ import {
   parseGitHubRepoReference,
   type SkillpackGitHubClient,
 } from './github-skills'
+import { normalizeSkillpackPath } from './paths'
 import {
   createSkillpackState,
   restoreSelectedPathsFromEntries,
@@ -45,7 +48,16 @@ import {
 
 interface SkillpackSessionLoaderOptions {
   rootDir?: string
+  agentDir?: string
   ghClient?: SkillpackGitHubClient
+}
+
+interface SettingsWithSkillpacks {
+  skillpacks?: unknown
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function pluralize(count: number, noun: string): string {
@@ -129,6 +141,59 @@ function sameSelections(current: Set<string>, next: string[]): boolean {
   }
 
   return true
+}
+
+function resolveConfiguredSkillpackSelections(value: unknown): string[] {
+  if (value === undefined) {
+    return []
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error('Global settings "skillpacks" must be an array.')
+  }
+
+  const resolved = new Set<string>()
+
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry === 'string') {
+      resolved.add(normalizeSkillpackPath(entry))
+      continue
+    }
+
+    if (!isObject(entry) || typeof entry.path !== 'string') {
+      throw new Error(
+        `Global settings "skillpacks[${index}]" must be a string or an object with a string "path" field.`,
+      )
+    }
+
+    const rootPath = normalizeSkillpackPath(entry.path)
+    const skills = entry.skills
+
+    if (skills === undefined) {
+      resolved.add(rootPath)
+      continue
+    }
+
+    if (
+      !Array.isArray(skills) ||
+      skills.some((skill) => typeof skill !== 'string')
+    ) {
+      throw new Error(
+        `Global settings "skillpacks[${index}].skills" must be an array of strings.`,
+      )
+    }
+
+    if (skills.length === 0) {
+      resolved.add(rootPath)
+      continue
+    }
+
+    for (const skill of skills) {
+      resolved.add(normalizeSkillpackPath(`${rootPath}/${skill}`))
+    }
+  }
+
+  return Array.from(resolved).sort((left, right) => left.localeCompare(right))
 }
 
 function formatQualifiedSkillName(result: GhSkillSearchResult): string {
@@ -775,6 +840,7 @@ class SkillpacksDialog implements Component {
 export function createSkillpackSessionLoader(
   options: SkillpackSessionLoaderOptions = {},
 ) {
+  const agentDir = options.agentDir ?? getAgentDir()
   const rootDir = options.rootDir ?? getDefaultSkillpackRoot()
   const ghClient = options.ghClient ?? defaultSkillpackGitHubClient
 
@@ -791,6 +857,21 @@ export function createSkillpackSessionLoader(
 
     function persistSelectedPaths() {
       pi.appendEntry(STATE_ENTRY_TYPE, createSkillpackState(selectedPaths))
+    }
+
+    function readGlobalSettingsSelectedPaths(ctx: ExtensionContext): string[] {
+      const settingsManager = SettingsManager.create(ctx.cwd, agentDir)
+      const globalSettings =
+        settingsManager.getGlobalSettings() as SettingsWithSkillpacks
+
+      return resolveConfiguredSkillpackSelections(globalSettings.skillpacks)
+    }
+
+    function getEffectiveSelectedPaths(ctx: ExtensionContext): Set<string> {
+      return new Set([
+        ...readGlobalSettingsSelectedPaths(ctx),
+        ...selectedPaths,
+      ])
     }
 
     async function installSkillpackFromRepository(
@@ -911,7 +992,7 @@ export function createSkillpackSessionLoader(
 
       const skillPaths = await resolveSelectedSkillEntryPoints(
         rootDir,
-        selectedPaths,
+        getEffectiveSelectedPaths(ctx),
       )
 
       return skillPaths.length > 0 ? { skillPaths } : undefined

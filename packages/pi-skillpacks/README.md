@@ -34,6 +34,25 @@ pi install npm:@carter-mcalister/pi-skillpacks
 
 Skills are loaded from their original directories, so files next to `SKILL.md` keep working.
 
+## Global settings
+
+Add `skillpacks` to `~/.pi/agent/settings.json` to load skill packs automatically at startup:
+
+```json
+{
+  "skillpacks": [
+    "superpowers",
+    "helpers/reviewer",
+    {
+      "path": "helpers",
+      "skills": ["planner", "writer"]
+    }
+  ]
+}
+```
+
+Entries use the same format as profile `skillpacks`: strings load an entire skillpack path, and objects with `path` plus `skills` load selected nested skills.
+
 ## Commands
 
 - `/skillpacks`

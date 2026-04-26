@@ -125,6 +125,30 @@ test('loads jsonc config files', async () => {
   })
 })
 
+test('loads protected-files config from .agents', async () => {
+  await withTempProject(async (cwd) => {
+    await mkdir(path.join(cwd, '.agents'))
+    await writeFile(
+      path.join(cwd, '.agents/protected-files.json'),
+      JSON.stringify({ files: ['.env.local'] }),
+    )
+
+    const fakePi = createFakePi()
+    createProtectedFilesExtension()(fakePi.api)
+    const { ctx } = createContext(cwd)
+
+    const decision = await fakePi.handler(
+      { toolName: 'write', input: { path: 'apps/web/.env.local' } },
+      ctx,
+    )
+
+    expect(decision).toEqual({
+      block: true,
+      reason: 'Protected file: apps/web/.env.local matches .env.local',
+    })
+  })
+})
+
 test('blocks write calls for matching filenames', async () => {
   await withTempProject(async (cwd) => {
     await writeFile(

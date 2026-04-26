@@ -14,7 +14,7 @@ For local development in this monorepo, the root `package.json` also registers t
 
 ## Config
 
-Create `.pi/protected-files.jsonc` in your project:
+Create `.agents/protected-files.jsonc` (or `.pi/protected-files.jsonc`) in your project:
 
 ```jsonc
 {
@@ -36,10 +36,12 @@ Create `.pi/protected-files.jsonc` in your project:
 
 Pi checks these files in order:
 
-1. `.pi/protected-files.jsonc`
-2. `.pi/protected-files.json`
-3. `pi-protected-files.jsonc`
-4. `pi-protected-files.json`
+1. `.agents/protected-files.jsonc`
+2. `.agents/protected-files.json`
+3. `.pi/protected-files.jsonc`
+4. `.pi/protected-files.json`
+5. `pi-protected-files.jsonc`
+6. `pi-protected-files.json`
 
 ## Modes
 

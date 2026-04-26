@@ -8,6 +8,8 @@ import type {
 } from '@mariozechner/pi-coding-agent'
 
 const DEFAULT_CONFIG_FILES = [
+  '.agents/protected-files.jsonc',
+  '.agents/protected-files.json',
   '.pi/protected-files.jsonc',
   '.pi/protected-files.json',
   'pi-protected-files.jsonc',

@@ -1,0 +1,53 @@
+{
+  "name": "@carter-mcalister/pi-codex-tasks",
+  "version": "0.1.0",
+  "description": "Codex-compatible task planning tools for Pi",
+  "author": "Carter McAlister",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CarterMcAlister/pi-packages.git",
+    "directory": "packages/pi-codex-tasks"
+  },
+  "bugs": {
+    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
+  },
+  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-codex-tasks#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "codex",
+    "tasks",
+    "plan"
+  ],
+  "scripts": {
+    "format": "bunx @biomejs/biome check --write .",
+    "lint": "bunx @biomejs/biome check .",
+    "typecheck": "bunx tsc -p ../../tsconfig.json --noEmit",
+    "check": "bun run lint && bun run typecheck"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.13",
+    "@mariozechner/pi-coding-agent": "*",
+    "bun-types": "latest",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}

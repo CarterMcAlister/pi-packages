@@ -1,0 +1,55 @@
+{
+  "name": "@carter-mcalister/pi-codex-image-gen",
+  "version": "0.1.0",
+  "description": "Codex-compatible image_generation tool for Pi",
+  "author": "Carter McAlister",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CarterMcAlister/pi-packages.git",
+    "directory": "packages/pi-codex-image-gen"
+  },
+  "bugs": {
+    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
+  },
+  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-codex-image-gen#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "codex",
+    "image-generation"
+  ],
+  "scripts": {
+    "format": "bunx @biomejs/biome check --write .",
+    "lint": "bunx @biomejs/biome check .",
+    "typecheck": "bunx tsc -p ../../tsconfig.json --noEmit",
+    "test": "bun test tests",
+    "check": "bun run lint && bun run typecheck && bun run test"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.13",
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "bun-types": "latest",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}

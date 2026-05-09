@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { getAgentDir } from '@mariozechner/pi-coding-agent'
+import { getAgentDir } from '@earendil-works/pi-coding-agent'
 
 export const PROFILES_COMMAND = 'profiles'
 export const PROFILE_STATE_ENTRY_TYPE = 'profile-state'

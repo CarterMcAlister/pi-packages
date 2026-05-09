@@ -5,13 +5,13 @@ import { join } from 'node:path'
 import type {
   ExtensionAPI,
   ExtensionContext,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import {
   createAgentSession,
   DefaultResourceLoader,
   SessionManager,
   SettingsManager,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import { PROFILE_STATE_ENTRY_TYPE, PROFILES_COMMAND } from '../src/constants'
 import { loadProfileExtensionsIntoPi } from '../src/extension-loader'
 import { createPiProfiles } from '../src/index'

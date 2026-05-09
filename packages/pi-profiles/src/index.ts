@@ -5,15 +5,15 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
   ExtensionContext,
-} from '@mariozechner/pi-coding-agent'
-import { DynamicBorder, getAgentDir } from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
+import { DynamicBorder, getAgentDir } from '@earendil-works/pi-coding-agent'
 import {
   Container,
   Key,
   matchesKey,
   SelectList,
   Text,
-} from '@mariozechner/pi-tui'
+} from '@earendil-works/pi-tui'
 import { getProfileCompletions } from './completions'
 import {
   getDefaultGlobalProfileRoot,

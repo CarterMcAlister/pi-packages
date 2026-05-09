@@ -4,7 +4,7 @@ import {
   getAgentDir,
   SettingsManager,
   type Theme,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import {
   type Component,
   Key,
@@ -12,7 +12,7 @@ import {
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
-} from '@mariozechner/pi-tui'
+} from '@earendil-works/pi-tui'
 import {
   countActiveSkillsForItem,
   getDescendantSkills,

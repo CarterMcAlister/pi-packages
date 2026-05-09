@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import type { PackageSource } from '@mariozechner/pi-coding-agent'
+import type { PackageSource } from '@earendil-works/pi-coding-agent'
 import { PROFILE_SETTINGS_FILE } from './constants'
 import type {
   LoadedProfile,

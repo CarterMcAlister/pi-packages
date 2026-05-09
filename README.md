@@ -15,6 +15,7 @@ A monorepo of Pi extensions, utilities, and Codex-compatible tool packages.
 | `@carter-mcalister/pi-profiles`        | Session-scoped profile loader for Pi                 |
 | `@carter-mcalister/pi-protected-files` | Project-configurable protected file gates for Pi     |
 | `@carter-mcalister/pi-skillpacks`      | Session-scoped skill pack loader for Pi              |
+| `@carter-mcalister/pi-utils`           | Grab-bag of Pi extensions: /context, /files, /loop, /whimsical, notify, pi-review-loop |
 | `@carter-mcalister/pi-worktrunk`       | Worktrunk-backed worktree extension for Pi Coding Agent |
 
 ## Getting started
@@ -46,6 +47,7 @@ pi install npm:@carter-mcalister/pi-codex-tools
 pi install npm:@carter-mcalister/pi-profiles
 pi install npm:@carter-mcalister/pi-protected-files
 pi install npm:@carter-mcalister/pi-skillpacks
+pi install npm:@carter-mcalister/pi-utils
 pi install npm:@carter-mcalister/pi-worktrunk
 ```
 

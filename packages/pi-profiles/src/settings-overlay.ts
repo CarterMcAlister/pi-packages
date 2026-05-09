@@ -1,4 +1,4 @@
-import { SettingsManager } from '@mariozechner/pi-coding-agent'
+import { SettingsManager } from '@earendil-works/pi-coding-agent'
 import {
   resolveProfilePackageSources,
   resolveProfileResourceSpecifiers,

@@ -1,0 +1,98 @@
+{
+  "name": "@carter-mcalister/pi-multicodex",
+  "version": "2.3.1",
+  "description": "Codex account rotation extension for pi",
+  "author": "Carter McAlister",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CarterMcAlister/pi-packages.git",
+    "directory": "packages/pi-multicodex"
+  },
+  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-multicodex#readme",
+  "bugs": {
+    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "abort-utils.ts",
+    "account-manager.ts",
+    "auth.ts",
+    "browser.ts",
+    "commands.ts",
+    "extension.ts",
+    "hooks.ts",
+    "index.ts",
+    "provider.ts",
+    "quota.ts",
+    "selection.ts",
+    "status.ts",
+    "storage.ts",
+    "stream-wrapper.ts",
+    "usage-client.ts",
+    "usage.ts",
+    "README.md",
+    "LICENSE",
+    "assets/**",
+    "schemas/**"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "pi-coding-agent",
+    "codex",
+    "openai",
+    "oauth"
+  ],
+  "scripts": {
+    "format": "bunx @biomejs/biome check --write .",
+    "lint": "bunx @biomejs/biome check .",
+    "typecheck": "bunx tsc -p ../../tsconfig.json --noEmit",
+    "test": "vitest run -c vitest.config.ts",
+    "check": "bun run lint && bun run typecheck && bun run test",
+    "pack:dry": "npm pack --dry-run"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "image": "https://raw.githubusercontent.com/CarterMcAlister/pi-packages/main/packages/pi-multicodex/assets/multicodex-main.png"
+  },
+  "dependencies": {
+    "pi-provider-utils": "^0.0.0",
+    "zod": "^4.3.6"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.13",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "@types/node": "22.0.0",
+    "bun-types": "latest",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

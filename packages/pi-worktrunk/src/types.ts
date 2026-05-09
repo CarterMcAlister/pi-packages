@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
 import type { WorktrunkService } from './services/worktrunk.ts'
 import type { StatusIndicator } from './ui/status.ts'
 

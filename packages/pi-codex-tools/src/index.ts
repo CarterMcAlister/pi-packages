@@ -6,14 +6,14 @@ import path from 'node:path'
 import type {
   ExtensionAPI,
   ExtensionContext,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
   truncateTail,
   withFileMutationQueue,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import { type Static, Type } from 'typebox'
 
 const DEFAULT_EXEC_YIELD_TIME_MS = 10_000

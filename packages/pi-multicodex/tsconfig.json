@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "abort-utils.ts",
+    "account-manager.ts",
+    "browser.ts",
+    "account-manager.ts",
+    "abort-utils.ts",
+    "browser.ts",
+    "commands.ts",
+    "extension.test.ts",
+    "extension.ts",
+    "hooks.test.ts",
+    "hooks.ts",
+    "index.ts",
+    "index.test.ts",
+    "provider.ts",
+    "quota.ts",
+    "selection.ts",
+    "storage.ts",
+    "stream-wrapper.ts",
+    "usage-client.ts",
+    "usage.ts",
+    "vitest.config.ts"
+  ]
+}

@@ -3,7 +3,7 @@
  *
  */
 
-import type { ExtensionFactory } from '@mariozechner/pi-coding-agent'
+import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { cmdCd } from './cmds/cmdCd.ts'
 import { cmdCreate } from './cmds/cmdCreate.ts'
 import { cmdInit } from './cmds/cmdInit.ts'

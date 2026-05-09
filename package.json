@@ -34,6 +34,7 @@
   "pi": {
     "extensions": [
       "./packages/pi-auto-name/src/index.ts",
+      "./packages/pi-multicodex/index.ts",
       "./packages/pi-skillpacks/src/skillpack-session-loader.ts",
       "./packages/pi-worktrunk/src/index.ts",
       "./packages/pi-profiles/src/index.ts",
@@ -42,7 +43,13 @@
       "./packages/pi-codex-image-gen/src/index.ts",
       "./packages/pi-codex-subagents/src/index.ts",
       "./packages/pi-codex-tasks/src/index.ts",
-      "./packages/pi-codex-ask-user/src/index.ts"
+      "./packages/pi-codex-ask-user/src/index.ts",
+      "./packages/pi-utils/src/context.ts",
+      "./packages/pi-utils/src/files.ts",
+      "./packages/pi-utils/src/loop.ts",
+      "./packages/pi-utils/src/notify.ts",
+      "./packages/pi-utils/src/whimsical.ts",
+      "./packages/pi-utils/src/pi-review-loop/index.ts"
     ]
   },
   "dependencies": {
@@ -54,9 +61,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.13",
-    "@mariozechner/pi-ai": "0.69.0",
-    "@mariozechner/pi-coding-agent": "0.69.0",
-    "@mariozechner/pi-tui": "0.69.0",
+    "@earendil-works/pi-ai": "0.74.0",
+    "@earendil-works/pi-coding-agent": "0.74.0",
+    "@earendil-works/pi-tui": "0.74.0",
     "@sinclair/typebox": "0.34.0",
     "@types/node": "22.0.0",
     "bun-types": "latest",

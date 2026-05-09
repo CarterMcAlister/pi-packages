@@ -6,8 +6,8 @@ import path from 'node:path'
 import type {
   ExtensionAPI,
   ExtensionContext,
-} from '@mariozechner/pi-coding-agent'
-import { Box, Container, Image, Text } from '@mariozechner/pi-tui'
+} from '@earendil-works/pi-coding-agent'
+import { Box, Container, Image, Text } from '@earendil-works/pi-tui'
 import { type Static, Type } from 'typebox'
 
 const TOOL_NAME = 'image_generation'

@@ -11,8 +11,8 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   Theme,
-} from '@mariozechner/pi-coding-agent'
-import { getMarkdownTheme } from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
+import { getMarkdownTheme } from '@earendil-works/pi-coding-agent'
 import {
   type Component,
   Container,
@@ -32,7 +32,7 @@ import {
   type TUI,
   truncateToWidth,
   wrapTextWithAnsi,
-} from '@mariozechner/pi-tui'
+} from '@earendil-works/pi-tui'
 import { type Static, type TUnsafe, Type } from '@sinclair/typebox'
 import {
   type QuestionOption,

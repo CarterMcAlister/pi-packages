@@ -1,8 +1,8 @@
-import { createJiti } from '@mariozechner/jiti'
 import type {
   ExtensionAPI,
   ExtensionFactory,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
+import { createJiti } from 'jiti'
 
 async function importExtensionFactory(
   extensionPath: string,

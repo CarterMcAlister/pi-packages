@@ -1,0 +1,64 @@
+{
+	"name": "@carter-mcalister/pi-utils",
+	"version": "0.1.0",
+	"description": "Grab-bag of personal Pi extensions: /context, /files, /loop, /whimsical, native notify, and pi-review-loop",
+	"author": "Carter McAlister",
+	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/CarterMcAlister/pi-packages.git",
+		"directory": "packages/pi-utils"
+	},
+	"bugs": {
+		"url": "https://github.com/CarterMcAlister/pi-packages/issues"
+	},
+	"homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-utils#readme",
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"src",
+		"README.md",
+		"tsconfig.json"
+	],
+	"keywords": [
+		"pi-package",
+		"pi",
+		"pi-extension",
+		"context",
+		"files",
+		"loop",
+		"notify",
+		"review-loop"
+	],
+	"scripts": {
+		"format": "bunx @biomejs/biome check --write .",
+		"lint": "bunx @biomejs/biome check .",
+		"typecheck": "bunx tsc -p tsconfig.json --noEmit",
+		"test": "bun test",
+		"check": "bun run lint && bun run typecheck && bun run test"
+	},
+	"pi": {
+		"extensions": [
+			"./src/context.ts",
+			"./src/files.ts",
+			"./src/loop.ts",
+			"./src/notify.ts",
+			"./src/whimsical.ts",
+			"./src/pi-review-loop/index.ts"
+		]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*",
+		"bun-types": "latest",
+		"typescript": "^5.9.3"
+	},
+	"license": "MIT"
+}

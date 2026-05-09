@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
 import type { WorktrunkListEntry } from '../services/worktrunk.ts'
 import type { CommandDeps } from '../types.ts'
 

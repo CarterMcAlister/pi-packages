@@ -1,5 +1,4 @@
-import type { RegisteredCommand } from '@mariozechner/pi-coding-agent'
-import type { AutocompleteItem } from '@mariozechner/pi-tui'
+import type { AutocompleteItem } from '@earendil-works/pi-tui'
 
 type CommandMap = Record<string, unknown>
 
@@ -12,10 +11,10 @@ function toItem(command: string): AutocompleteItem {
 
 export function createCompletionFactory(
   commands: CommandMap,
-): NonNullable<RegisteredCommand['getArgumentCompletions']> {
+): (argumentPrefix: string) => AutocompleteItem[] | null {
   const commandNames = Object.keys(commands).sort()
 
-  return (argumentPrefix) => {
+  return (argumentPrefix: string) => {
     const prefix = argumentPrefix.trimStart()
 
     if (prefix.includes(' ')) {

@@ -1,0 +1,23 @@
+{
+  "name": "@carter-mcalister/pi-glimpse-url-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "macOS Glimpse URL helper app for opening Plannotator browser surfaces in a native Glimpse window.",
+  "type": "module",
+  "bin": {
+    "glimpse-url": "./bin/glimpse-url.mjs"
+  },
+  "scripts": {
+    "install-app": "node ./scripts/install-macos-app.mjs"
+  },
+  "dependencies": {
+    "glimpseui": "^0.8.0"
+  },
+  "keywords": [
+    "pi",
+    "plannotator",
+    "glimpse",
+    "macos"
+  ],
+  "license": "MIT"
+}

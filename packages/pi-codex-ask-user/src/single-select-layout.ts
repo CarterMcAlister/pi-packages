@@ -1,4 +1,3 @@
-// biome-ignore-all lint: copied pi-ask-user layout helper
 export interface QuestionOption {
   title: string
   description?: string
@@ -88,7 +87,7 @@ function buildItemBlocks(
   hideDescriptions = false,
 ): ItemBlock[] {
   const normalizedWidth = Math.max(12, width)
-  const freeformLabel = 'Type something. — Enter a custom response'
+  const freeformLabel = 'None of the above — Enter a custom response'
   const commentToggleLabel = `${commentEnabled ? '[✓]' : '[ ]'} Add extra context after selection`
   const allItems: ListItem[] = options.map((option) => ({
     type: 'option',
@@ -211,20 +210,20 @@ export function renderSingleSelectRows({
   let usedRows = selectedBlock.lines.length
 
   while (true) {
-    const nextCanFit =
-      end < blocks.length &&
-      usedRows + blocks[end]!.lines.length <= availableRows
-    if (nextCanFit) {
-      usedRows += blocks[end]!.lines.length
+    const nextBlock = blocks[end]
+    if (nextBlock && usedRows + nextBlock.lines.length <= availableRows) {
+      usedRows += nextBlock.lines.length
       end += 1
       continue
     }
 
-    const prevCanFit =
-      start > 0 && usedRows + blocks[start - 1]!.lines.length <= availableRows
-    if (prevCanFit) {
+    const previousBlock = blocks[start - 1]
+    if (
+      previousBlock &&
+      usedRows + previousBlock.lines.length <= availableRows
+    ) {
       start -= 1
-      usedRows += blocks[start]!.lines.length
+      usedRows += previousBlock.lines.length
       continue
     }
 

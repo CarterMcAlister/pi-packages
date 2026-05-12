@@ -341,6 +341,24 @@ describe('AccountManager usage fetch warnings', () => {
     expect(warningHandler).not.toHaveBeenCalled()
   })
 
+  it('fails silently for network usage fetch failures', async () => {
+    const manager = new AccountManager()
+    const warningHandler = vi.fn()
+    manager.setWarningHandler(warningHandler)
+    const account = manager.addOrUpdateAccount('network@example.com', {
+      access: 'access',
+      refresh: 'refresh',
+      expires: Date.now() + 3600_000,
+    })
+
+    mocks.fetchCodexUsage.mockRejectedValueOnce(new TypeError('fetch failed'))
+
+    await expect(
+      manager.refreshUsageForAccount(account),
+    ).resolves.toBeUndefined()
+    expect(warningHandler).not.toHaveBeenCalled()
+  })
+
   it('still warns for non-abort usage fetch failures', async () => {
     const manager = new AccountManager()
     const warningHandler = vi.fn()

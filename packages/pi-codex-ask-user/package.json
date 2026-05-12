@@ -18,6 +18,7 @@
   },
   "files": [
     "src",
+    "skills",
     "README.md"
   ],
   "keywords": [
@@ -31,12 +32,16 @@
   "scripts": {
     "format": "bunx @biomejs/biome check --write .",
     "lint": "bunx @biomejs/biome check .",
-    "typecheck": "bunx tsc -p ../../tsconfig.json --noEmit",
-    "check": "bun run lint && bun run typecheck"
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
+    "test": "bun test",
+    "check": "bun run lint && bun run typecheck && bun run test"
   },
   "pi": {
     "extensions": [
       "./src/index.ts"
+    ],
+    "skills": [
+      "./skills"
     ]
   },
   "peerDependencies": {

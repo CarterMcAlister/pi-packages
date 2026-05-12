@@ -40,6 +40,7 @@
       "./packages/pi-worktrunk/src/index.ts",
       "./packages/pi-profiles/src/index.ts",
       "./packages/pi-protected-files/src/index.ts",
+      "./packages/pi-powerline-footer/index.ts",
       "./packages/pi-codex-tools/src/index.ts",
       "./packages/pi-codex-image-gen/src/index.ts",
       "./packages/pi-codex-subagents/src/index.ts",

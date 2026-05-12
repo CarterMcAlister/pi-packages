@@ -34,6 +34,14 @@ type MaybeModel = Model<Api> | undefined
 export type PercentDisplayMode = 'left' | 'used'
 export type ResetWindowMode = '5h' | '7d' | 'both'
 export type StatusOrder = 'account-first' | 'usage-first'
+export type FooterItemId = 'brand' | 'account' | '5h' | '7d'
+
+const FOOTER_ITEM_IDS: readonly FooterItemId[] = [
+  'brand',
+  'account',
+  '5h',
+  '7d',
+]
 
 export interface FooterPreferences {
   usageMode: PercentDisplayMode
@@ -41,6 +49,7 @@ export interface FooterPreferences {
   showAccount: boolean
   showReset: boolean
   order: StatusOrder
+  footerItems: FooterItemId[]
 }
 
 const DEFAULT_PREFERENCES: FooterPreferences = {
@@ -49,6 +58,7 @@ const DEFAULT_PREFERENCES: FooterPreferences = {
   showAccount: true,
   showReset: true,
   order: 'account-first',
+  footerItems: [...FOOTER_ITEM_IDS],
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -68,8 +78,67 @@ function isStatusOrder(value: unknown): value is StatusOrder {
   return value === 'account-first' || value === 'usage-first'
 }
 
+function isFooterItemId(value: unknown): value is FooterItemId {
+  return (FOOTER_ITEM_IDS as readonly unknown[]).includes(value)
+}
+
+function normalizeFooterItems(
+  value: unknown,
+  legacyShowAccount: boolean,
+): FooterItemId[] {
+  if (!Array.isArray(value)) {
+    return DEFAULT_PREFERENCES.footerItems.filter(
+      (item) => legacyShowAccount || item !== 'account',
+    )
+  }
+
+  const items: FooterItemId[] = []
+  for (const item of value) {
+    if (isFooterItemId(item) && !items.includes(item)) {
+      items.push(item)
+    }
+  }
+
+  return items
+}
+
+function hasFooterItem(
+  preferences: FooterPreferences,
+  item: FooterItemId,
+): boolean {
+  return preferences.footerItems.includes(item)
+}
+
+function setFooterItem(
+  preferences: FooterPreferences,
+  item: FooterItemId,
+  enabled: boolean,
+): FooterPreferences {
+  const footerItems = enabled
+    ? [...preferences.footerItems, item]
+    : preferences.footerItems.filter((existing) => existing !== item)
+  const deduped = FOOTER_ITEM_IDS.filter((candidate) =>
+    footerItems.includes(candidate),
+  )
+
+  return {
+    ...preferences,
+    showAccount: item === 'account' ? enabled : preferences.showAccount,
+    footerItems: deduped,
+  }
+}
+
 function normalizePreferences(value: unknown): FooterPreferences {
   const record = asObject(value)
+  const legacyShowAccount =
+    typeof record?.showAccount === 'boolean'
+      ? record.showAccount
+      : DEFAULT_PREFERENCES.showAccount
+  const footerItems = normalizeFooterItems(
+    record?.footerItems,
+    legacyShowAccount,
+  )
+
   return {
     usageMode: isPercentDisplayMode(record?.usageMode)
       ? record.usageMode
@@ -77,10 +146,7 @@ function normalizePreferences(value: unknown): FooterPreferences {
     resetWindow: isResetWindowMode(record?.resetWindow)
       ? record.resetWindow
       : DEFAULT_PREFERENCES.resetWindow,
-    showAccount:
-      typeof record?.showAccount === 'boolean'
-        ? record.showAccount
-        : DEFAULT_PREFERENCES.showAccount,
+    showAccount: footerItems.includes('account'),
     showReset:
       typeof record?.showReset === 'boolean'
         ? record.showReset
@@ -88,6 +154,7 @@ function normalizePreferences(value: unknown): FooterPreferences {
     order: isStatusOrder(record?.order)
       ? record.order
       : DEFAULT_PREFERENCES.order,
+    footerItems,
   }
 }
 
@@ -204,11 +271,14 @@ function formatUsageSegment(
   resetAt: number | undefined,
   showReset: boolean,
   preferences: FooterPreferences,
-): string {
+): string | undefined {
   const displayPercent = usedToDisplayPercent(
     usedPercent,
     preferences.usageMode,
   )
+  const severity = getUsageSeverityToken(displayPercent, preferences.usageMode)
+  if (severity === 'success') return undefined
+
   const parts = [
     `${label}${formatPercent(displayPercent, preferences.usageMode)}`,
   ]
@@ -218,10 +288,7 @@ function formatUsageSegment(
       parts.push(`(↺${countdown})`)
     }
   }
-  return ctx.ui.theme.fg(
-    getUsageSeverityToken(displayPercent, preferences.usageMode),
-    parts.join(' '),
-  )
+  return ctx.ui.theme.fg(severity, parts.join(' '))
 }
 
 export function isManagedModel(model: MaybeModel): boolean {
@@ -234,38 +301,48 @@ export function formatActiveAccountStatus(
   usage: CodexUsageSnapshot | undefined,
   preferences: FooterPreferences,
 ): string {
-  const accountText = preferences.showAccount
+  const brandText = hasFooterItem(preferences, 'brand')
+    ? formatBrand(ctx)
+    : undefined
+  const accountText = hasFooterItem(preferences, 'account')
     ? ctx.ui.theme.fg('text', accountEmail)
     : undefined
+  const showFiveHour = hasFooterItem(preferences, '5h')
+  const showSevenDay = hasFooterItem(preferences, '7d')
+
   if (!usage) {
-    return [formatBrand(ctx), accountText, formatLoading(ctx)]
-      .filter(Boolean)
-      .join(' ')
+    const loadingText =
+      showFiveHour || showSevenDay ? formatLoading(ctx) : undefined
+    return [brandText, accountText, loadingText].filter(Boolean).join(' ')
   }
 
-  const fiveHour = formatUsageSegment(
-    ctx,
-    FIVE_HOUR_LABEL,
-    usage.primary?.usedPercent,
-    usage.primary?.resetAt,
-    shouldShowReset(preferences, '5h'),
-    preferences,
-  )
-  const sevenDay = formatUsageSegment(
-    ctx,
-    SEVEN_DAY_LABEL,
-    usage.secondary?.usedPercent,
-    usage.secondary?.resetAt,
-    shouldShowReset(preferences, '7d'),
-    preferences,
-  )
+  const fiveHour = showFiveHour
+    ? formatUsageSegment(
+        ctx,
+        FIVE_HOUR_LABEL,
+        usage.primary?.usedPercent,
+        usage.primary?.resetAt,
+        shouldShowReset(preferences, '5h'),
+        preferences,
+      )
+    : undefined
+  const sevenDay = showSevenDay
+    ? formatUsageSegment(
+        ctx,
+        SEVEN_DAY_LABEL,
+        usage.secondary?.usedPercent,
+        usage.secondary?.resetAt,
+        shouldShowReset(preferences, '7d'),
+        preferences,
+      )
+    : undefined
 
   const usageSegments = [fiveHour, sevenDay].filter(Boolean)
   const usageText = usageSegments.join(` ${formatSeparator(ctx)} `)
   const leading =
     preferences.order === 'account-first'
-      ? [formatBrand(ctx), accountText, usageText]
-      : [formatBrand(ctx), usageText]
+      ? [brandText, accountText, usageText]
+      : [brandText, usageText]
   const trailing =
     preferences.order === 'account-first' ? [] : [accountText].filter(Boolean)
 
@@ -276,6 +353,13 @@ export function formatActiveAccountStatus(
 
 function getBooleanLabel(value: boolean): string {
   return value ? 'on' : 'off'
+}
+
+function getFooterItemLabel(
+  preferences: FooterPreferences,
+  item: FooterItemId,
+): string {
+  return getBooleanLabel(hasFooterItem(preferences, item))
 }
 
 function createSettingsItems(preferences: FooterPreferences): SettingItem[] {
@@ -296,10 +380,31 @@ function createSettingsItems(preferences: FooterPreferences): SettingItem[] {
       values: ['5h', '7d', 'both'],
     },
     {
+      id: 'showBrand',
+      label: 'Show brand',
+      description: 'Display the Codex brand label in the footer',
+      currentValue: getFooterItemLabel(preferences, 'brand'),
+      values: ['on', 'off'],
+    },
+    {
       id: 'showAccount',
       label: 'Show account',
       description: 'Display the active account identifier in the footer',
-      currentValue: getBooleanLabel(preferences.showAccount),
+      currentValue: getFooterItemLabel(preferences, 'account'),
+      values: ['on', 'off'],
+    },
+    {
+      id: 'showFiveHourUsage',
+      label: 'Show 5h usage',
+      description: 'Display the 5-hour quota percentage in the footer',
+      currentValue: getFooterItemLabel(preferences, '5h'),
+      values: ['on', 'off'],
+    },
+    {
+      id: 'showSevenDayUsage',
+      label: 'Show 7d usage',
+      description: 'Display the 7-day quota percentage in the footer',
+      currentValue: getFooterItemLabel(preferences, '7d'),
       values: ['on', 'off'],
     },
     {
@@ -332,8 +437,17 @@ function applyPreferenceChange(
   if (id === 'resetWindow' && isResetWindowMode(newValue)) {
     return { ...preferences, resetWindow: newValue }
   }
+  if (id === 'showBrand') {
+    return setFooterItem(preferences, 'brand', newValue === 'on')
+  }
   if (id === 'showAccount') {
-    return { ...preferences, showAccount: newValue === 'on' }
+    return setFooterItem(preferences, 'account', newValue === 'on')
+  }
+  if (id === 'showFiveHourUsage') {
+    return setFooterItem(preferences, '5h', newValue === 'on')
+  }
+  if (id === 'showSevenDayUsage') {
+    return setFooterItem(preferences, '7d', newValue === 'on')
   }
   if (id === 'showReset') {
     return { ...preferences, showReset: newValue === 'on' }
@@ -397,9 +511,7 @@ export function createUsageStatusController(accountManager: AccountManager) {
     }
 
     const text = getStatusText(ctx, preferencesOverride)
-    if (text) {
-      ctx.ui.setStatus(STATUS_KEY, text)
-    }
+    ctx.ui.setStatus(STATUS_KEY, text || undefined)
   }
 
   async function updateStatus(ctx: ExtensionContext): Promise<void> {
@@ -424,15 +536,13 @@ export function createUsageStatusController(accountManager: AccountManager) {
     const usage =
       (await accountManager.refreshUsageForAccount(activeAccount)) ??
       cachedUsage
-    ctx.ui.setStatus(
-      STATUS_KEY,
-      formatActiveAccountStatus(
-        ctx,
-        activeAccount.email,
-        usage,
-        livePreviewPreferences ?? preferences,
-      ),
+    const text = formatActiveAccountStatus(
+      ctx,
+      activeAccount.email,
+      usage,
+      livePreviewPreferences ?? preferences,
     )
+    ctx.ui.setStatus(STATUS_KEY, text || undefined)
   }
 
   async function refreshFor(ctx: ExtensionContext): Promise<void> {
@@ -508,9 +618,8 @@ export function createUsageStatusController(accountManager: AccountManager) {
     theme: ExtensionCommandContext['ui']['theme'],
     draft: FooterPreferences,
   ): string {
-    const previewText =
-      getStatusText(ctx, draft) ?? `${formatBrand(ctx)} ${formatLoading(ctx)}`
-    return `${theme.fg('dim', 'Preview')}: ${previewText}`
+    const previewText = getStatusText(ctx, draft)
+    return `${theme.fg('dim', 'Preview')}: ${previewText || theme.fg('dim', 'hidden')}`
   }
 
   async function openPreferencesPanel(

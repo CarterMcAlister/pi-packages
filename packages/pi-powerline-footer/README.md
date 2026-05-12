@@ -200,6 +200,7 @@ Selecting an entry inserts it into the editor. If the editor already has text, y
 - `cmd+down` — scroll the fixed-editor chat viewport down
 - `cmd+shift+up` — move the editor cursor to the start of the first line
 - `cmd+shift+down` — move the editor cursor to the end of the last line
+- `option+shift+left/right` — highlight the previous/next word in the editor
 - `ctrl+shift+u` — jump the fixed-editor chat viewport to the previous user message
 - `ctrl+shift+i` — jump the fixed-editor chat viewport to the next user message
 - `ctrl+alt+,` — jump the fixed-editor chat viewport to the previous LLM message

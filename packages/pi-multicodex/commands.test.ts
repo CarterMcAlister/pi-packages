@@ -14,6 +14,7 @@ function createStatusControllerMock() {
       showAccount: true,
       showReset: true,
       order: 'account-first',
+      footerItems: ['brand', 'account', '5h', '7d'],
     })),
   } as unknown as ReturnType<typeof createUsageStatusController>
 }

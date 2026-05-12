@@ -76,7 +76,7 @@ When you remove an active account, MultiCodex switches to the next available one
 
 MultiCodex adds a live footer to your session showing the active account, 5-hour and 7-day usage percentages, and reset countdowns. The footer updates after every turn and on account switches.
 
-You can customize which fields appear and their ordering with `/multicodex footer`.
+You can customize which fields appear and their ordering with `/multicodex footer`. The same preferences can be set in `~/.pi/agent/settings.json` under `pi-multicodex`; use `footerItems` to choose any of `brand`, `account`, `5h`, and `7d`. Enabled quota windows (`5h` and `7d`) are only shown when their severity is below the green/success tier.
 
 ![MultiCodex footer settings](./assets/multicodex-footer-settings.png)
 

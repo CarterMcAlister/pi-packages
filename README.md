@@ -12,6 +12,7 @@ A monorepo of Pi extensions, utilities, and Codex-compatible tool packages.
 | `@carter-mcalister/pi-codex-subagents` | Codex-compatible MultiAgentV2 subagent tools for Pi  |
 | `@carter-mcalister/pi-codex-tasks`     | Codex-compatible task planning tools for Pi          |
 | `@carter-mcalister/pi-codex-tools`     | Codex-compatible tool surface for Pi                 |
+| `@carter-mcalister/pi-glimpse-url-app` | macOS Glimpse URL helper app for Plannotator         |
 | `@carter-mcalister/pi-profiles`        | Session-scoped profile loader for Pi                 |
 | `@carter-mcalister/pi-protected-files` | Project-configurable protected file gates for Pi     |
 | `@carter-mcalister/pi-skillpacks`      | Session-scoped skill pack loader for Pi              |
@@ -23,6 +24,16 @@ A monorepo of Pi extensions, utilities, and Codex-compatible tool packages.
 ```bash
 mise install
 mise run setup
+```
+
+## Glimpse URL App
+
+`@carter-mcalister/pi-glimpse-url-app` is a local macOS helper for Plannotator. Plannotator normally opens review and annotation gates in a browser; this helper installs `Glimpse URL.app` so `PLANNOTATOR_BROWSER="Glimpse URL"` opens those plan-review windows in native Glimpse instead. It is mainly used for Plannotator setup-goal reviews, `plannotator annotate --gate`, and other Plannotator approval flows that should feel like an integrated Pi review surface instead of a separate browser tab.
+
+Install or refresh it with:
+
+```bash
+bun run --cwd packages/pi-glimpse-url-app install-app
 ```
 
 ## Common commands

@@ -1156,6 +1156,103 @@ test('bash editor command arrows jump to editor boundaries', async () => {
   }
 })
 
+test('bash editor option-shift arrows select words', async () => {
+  const links = ensureEditorModuleLinks()
+
+  try {
+    const { BashModeEditor } = await import('../bash-mode/editor.ts')
+    const { KeybindingsManager, TUI_KEYBINDINGS } = await import(
+      '@earendil-works/pi-tui'
+    )
+    const keybindings = new KeybindingsManager(TUI_KEYBINDINGS)
+    let renderRequests = 0
+    const editor = new BashModeEditor(
+      {
+        requestRender() {
+          renderRequests += 1
+        },
+        terminal: { columns: 80, rows: 24 },
+      },
+      { borderColor: (text: string) => text, selectList: {} },
+      keybindings,
+      {
+        keybindings,
+        isBashModeActive: () => false,
+        isShellRunning: () => false,
+        onExitBashMode() {},
+        onSubmitCommand() {},
+        onInterrupt() {},
+        onNotify() {},
+        getHistoryEntries: () => [],
+        resolveGhostSuggestion: async () => null,
+      },
+    )
+
+    editor.setText('alpha beta gamma')
+    editor.handleInput('\x1b[1;4D')
+
+    assert.deepEqual(editor.getCursor(), { line: 0, col: 11 })
+    assert.equal(editor.getSelectedText(), 'gamma')
+    assert.ok(editor.render(40)[1]?.includes('\x1b[7mgamma\x1b[0m'))
+    assert.equal(renderRequests, 1)
+
+    editor.handleInput('\x1b[D')
+    assert.equal(editor.getSelectedText(), null)
+  } finally {
+    links.cleanup()
+  }
+})
+
+test('bash editor backspace deletes highlighted words', async () => {
+  const links = ensureEditorModuleLinks()
+
+  try {
+    const { BashModeEditor } = await import('../bash-mode/editor.ts')
+    const { KeybindingsManager, TUI_KEYBINDINGS } = await import(
+      '@earendil-works/pi-tui'
+    )
+    const keybindings = new KeybindingsManager(TUI_KEYBINDINGS)
+    let renderRequests = 0
+    const editor = new BashModeEditor(
+      {
+        requestRender() {
+          renderRequests += 1
+        },
+        terminal: { columns: 80, rows: 24 },
+      },
+      { borderColor: (text: string) => text, selectList: {} },
+      keybindings,
+      {
+        keybindings,
+        isBashModeActive: () => false,
+        isShellRunning: () => false,
+        onExitBashMode() {},
+        onSubmitCommand() {},
+        onInterrupt() {},
+        onNotify() {},
+        getHistoryEntries: () => [],
+        resolveGhostSuggestion: async () => null,
+      },
+    )
+    let changedText = ''
+    editor.onChange = (text: string) => {
+      changedText = text
+    }
+
+    editor.setText('alpha beta gamma')
+    editor.handleInput('\x1b[1;4D')
+    editor.handleInput('\x7f')
+
+    assert.equal(editor.getText(), 'alpha beta ')
+    assert.equal(changedText, 'alpha beta ')
+    assert.deepEqual(editor.getCursor(), { line: 0, col: 11 })
+    assert.equal(editor.getSelectedText(), null)
+    assert.equal(renderRequests, 2)
+  } finally {
+    links.cleanup()
+  }
+})
+
 test('bash editor enter does not accept ghost text while a shell command is running', async () => {
   const links = ensureEditorModuleLinks()
 

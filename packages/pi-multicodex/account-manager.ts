@@ -21,12 +21,25 @@ const QUOTA_COOLDOWN_MS = 60 * 60 * 1000
 type WarningHandler = (message: string) => void
 type StateChangeHandler = () => void
 
-function isAbortLikeError(error: unknown): boolean {
+function isAbortLikeError(
+  error: unknown,
+  normalizedError = normalizeUnknownError(error),
+): boolean {
   if (error instanceof Error && error.name === 'AbortError') {
     return true
   }
 
-  return normalizeUnknownError(error) === 'This operation was aborted'
+  return normalizedError === 'This operation was aborted'
+}
+
+function shouldSuppressUsageFetchWarning(
+  error: unknown,
+  normalizedError: string,
+): boolean {
+  return (
+    isAbortLikeError(error, normalizedError) ||
+    normalizedError === 'fetch failed'
+  )
 }
 
 export class AccountManager {
@@ -365,11 +378,10 @@ export class AccountManager {
       this.notifyStateChanged()
       return usage
     } catch (error) {
-      if (!isAbortLikeError(error)) {
+      const normalizedError = normalizeUnknownError(error)
+      if (!shouldSuppressUsageFetchWarning(error, normalizedError)) {
         this.warningHandler?.(
-          `Multicodex: failed to fetch usage for ${account.email}: ${normalizeUnknownError(
-            error,
-          )}`,
+          `Multicodex: failed to fetch usage for ${account.email}: ${normalizedError}`,
         )
       }
       return undefined

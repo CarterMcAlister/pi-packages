@@ -12,6 +12,7 @@ const defaultPreferences: FooterPreferences = {
   showAccount: true,
   showReset: true,
   order: 'account-first',
+  footerItems: ['brand', 'account', '5h', '7d'],
 }
 
 function createContext(overrides?: {
@@ -48,14 +49,14 @@ describe('isManagedModel', () => {
 })
 
 describe('formatActiveAccountStatus', () => {
-  it('renders account, usage, and both reset countdowns beside their matching periods', () => {
+  it('renders account, non-green usage, and reset countdowns beside their matching periods', () => {
     const ctx = createContext()
     const text = formatActiveAccountStatus(
       ctx,
       'a@example.com',
       {
-        primary: { usedPercent: 25, resetAt: Date.now() + 60_000 },
-        secondary: { usedPercent: 60, resetAt: Date.now() + 3_600_000 },
+        primary: { usedPercent: 55, resetAt: Date.now() + 60_000 },
+        secondary: { usedPercent: 80, resetAt: Date.now() + 3_600_000 },
         fetchedAt: 0,
       },
       defaultPreferences,
@@ -63,8 +64,8 @@ describe('formatActiveAccountStatus', () => {
 
     expect(text).toContain('Codex')
     expect(text).toContain('a@example.com')
-    expect(text).toContain('5h:75% left (↺')
-    expect(text).toContain('7d:40% left (↺')
+    expect(text).toContain('5h:45% left (↺')
+    expect(text).toContain('7d:20% left (↺')
     expect(text).not.toContain('(5h:↺')
     expect(text).not.toContain('(7d:↺')
   })
@@ -75,8 +76,8 @@ describe('formatActiveAccountStatus', () => {
       ctx,
       'a@example.com',
       {
-        primary: { usedPercent: 10, resetAt: 1 },
-        secondary: { usedPercent: 20, resetAt: 2 },
+        primary: { usedPercent: 55, resetAt: 1 },
+        secondary: { usedPercent: 80, resetAt: 2 },
         fetchedAt: 0,
       },
       {
@@ -85,16 +86,39 @@ describe('formatActiveAccountStatus', () => {
         showReset: false,
         order: 'usage-first',
         usageMode: 'used',
+        footerItems: ['brand', '5h', '7d'],
       },
     )
 
-    expect(text).toContain('5h:10% used')
-    expect(text).toContain('7d:20% used')
+    expect(text).toContain('5h:55% used')
+    expect(text).toContain('7d:80% used')
     expect(text).not.toContain('a@example.com')
     expect(text).not.toContain('↺')
   })
 
-  it('colors full usage windows by severity, adds muted separators, and lifts the account text', () => {
+  it('uses footerItems to choose which footer segments are emitted', () => {
+    const ctx = createContext()
+    const text = formatActiveAccountStatus(
+      ctx,
+      'a@example.com',
+      {
+        primary: { usedPercent: 10, resetAt: 1 },
+        secondary: { usedPercent: 80, resetAt: 2 },
+        fetchedAt: 0,
+      },
+      {
+        ...defaultPreferences,
+        footerItems: ['account', '7d'],
+      },
+    )
+
+    expect(text).toContain('a@example.com')
+    expect(text).toContain('7d:20% left')
+    expect(text).not.toContain('Codex')
+    expect(text).not.toContain('5h:90% left')
+  })
+
+  it('colors non-green usage windows by severity, adds muted separators, and lifts the account text', () => {
     const ctx = createContext({
       color: (token: string, text: string) => `[${token}:${text}]`,
     })
@@ -102,7 +126,7 @@ describe('formatActiveAccountStatus', () => {
       ctx,
       'a@example.com',
       {
-        primary: { usedPercent: 25, resetAt: Date.now() + 60_000 },
+        primary: { usedPercent: 55, resetAt: Date.now() + 60_000 },
         secondary: { usedPercent: 95, resetAt: Date.now() + 120_000 },
         fetchedAt: 0,
       },
@@ -111,9 +135,28 @@ describe('formatActiveAccountStatus', () => {
 
     expect(text).toContain('[muted:Codex]')
     expect(text).toContain('[text:a@example.com]')
-    expect(text).toContain('[success:5h:75% left (↺')
+    expect(text).toContain('[thinkingMedium:5h:45% left (↺')
     expect(text).toContain('[error:7d:5% left (↺')
     expect(text).toContain('[muted:·]')
+  })
+
+  it('hides green usage windows even when they are enabled', () => {
+    const ctx = createContext()
+    const text = formatActiveAccountStatus(
+      ctx,
+      'a@example.com',
+      {
+        primary: { usedPercent: 10, resetAt: 1 },
+        secondary: { usedPercent: 20, resetAt: 2 },
+        fetchedAt: 0,
+      },
+      defaultPreferences,
+    )
+
+    expect(text).toContain('Codex')
+    expect(text).toContain('a@example.com')
+    expect(text).not.toContain('5h:90% left')
+    expect(text).not.toContain('7d:80% left')
   })
 
   it('uses thinkingMedium for neutral used windows', () => {
@@ -188,8 +231,8 @@ describe('createUsageStatusController', () => {
       getActiveAccount: () => ({ email: 'a@example.com' }),
       getCachedUsage: vi.fn(),
       refreshUsageForAccount: vi.fn().mockResolvedValue({
-        primary: { usedPercent: 10, resetAt: 1 },
-        secondary: { usedPercent: 20, resetAt: 2 },
+        primary: { usedPercent: 60, resetAt: 1 },
+        secondary: { usedPercent: 70, resetAt: 2 },
         fetchedAt: 0,
       }),
     } as never)
@@ -202,11 +245,11 @@ describe('createUsageStatusController', () => {
     )
     expect(setStatus).toHaveBeenCalledWith(
       'multicodex-usage',
-      expect.stringContaining('5h:90% left'),
+      expect.stringContaining('5h:40% left'),
     )
     expect(setStatus).toHaveBeenCalledWith(
       'multicodex-usage',
-      expect.stringContaining('7d:80% left'),
+      expect.stringContaining('7d:30% left'),
     )
   })
 
@@ -216,8 +259,8 @@ describe('createUsageStatusController', () => {
       onStateChange: () => () => undefined,
       getActiveAccount: () => ({ email: 'a@example.com' }),
       getCachedUsage: () => ({
-        primary: { usedPercent: 30, resetAt: 1 },
-        secondary: { usedPercent: 40, resetAt: 2 },
+        primary: { usedPercent: 60, resetAt: 1 },
+        secondary: { usedPercent: 70, resetAt: 2 },
         fetchedAt: 0,
       }),
       refreshUsageForAccount: vi.fn().mockResolvedValue(undefined),
@@ -227,11 +270,11 @@ describe('createUsageStatusController', () => {
 
     expect(setStatus).toHaveBeenCalledWith(
       'multicodex-usage',
-      expect.stringContaining('5h:70% left'),
+      expect.stringContaining('5h:40% left'),
     )
     expect(setStatus).toHaveBeenCalledWith(
       'multicodex-usage',
-      expect.stringContaining('7d:60% left'),
+      expect.stringContaining('7d:30% left'),
     )
   })
 
@@ -239,16 +282,16 @@ describe('createUsageStatusController', () => {
     vi.useFakeTimers()
     const setStatus = vi.fn()
     const refreshUsageForAccount = vi.fn().mockResolvedValue({
-      primary: { usedPercent: 10, resetAt: 1 },
-      secondary: { usedPercent: 20, resetAt: 2 },
+      primary: { usedPercent: 60, resetAt: 1 },
+      secondary: { usedPercent: 70, resetAt: 2 },
       fetchedAt: 0,
     })
     const controller = createUsageStatusController({
       onStateChange: () => () => undefined,
       getActiveAccount: () => ({ email: 'a@example.com' }),
       getCachedUsage: () => ({
-        primary: { usedPercent: 30, resetAt: 1 },
-        secondary: { usedPercent: 40, resetAt: 2 },
+        primary: { usedPercent: 60, resetAt: 1 },
+        secondary: { usedPercent: 70, resetAt: 2 },
         fetchedAt: 0,
       }),
       refreshUsageForAccount,
@@ -260,7 +303,7 @@ describe('createUsageStatusController', () => {
 
     expect(setStatus).toHaveBeenCalledWith(
       'multicodex-usage',
-      expect.stringContaining('5h:70% left'),
+      expect.stringContaining('5h:40% left'),
     )
     expect(refreshUsageForAccount).not.toHaveBeenCalled()
 
@@ -299,16 +342,16 @@ describe('createUsageStatusController', () => {
       [
         'a@example.com',
         {
-          primary: { usedPercent: 30, resetAt: 1 },
-          secondary: { usedPercent: 40, resetAt: 2 },
+          primary: { usedPercent: 60, resetAt: 1 },
+          secondary: { usedPercent: 70, resetAt: 2 },
           fetchedAt: 0,
         },
       ],
       [
         'b@example.com',
         {
-          primary: { usedPercent: 5, resetAt: 1 },
-          secondary: { usedPercent: 10, resetAt: 2 },
+          primary: { usedPercent: 55, resetAt: 1 },
+          secondary: { usedPercent: 90, resetAt: 2 },
           fetchedAt: 0,
         },
       ],
@@ -336,7 +379,7 @@ describe('createUsageStatusController', () => {
     )
     expect(setStatus).toHaveBeenLastCalledWith(
       'multicodex-usage',
-      expect.stringContaining('5h:95% left'),
+      expect.stringContaining('5h:45% left'),
     )
   })
 })

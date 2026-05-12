@@ -1,4 +1,3 @@
-// biome-ignore-all lint: copied pi-ask-user UI implementation with Codex-specific tool wrapper
 /**
  * Ask Tool Extension - Interactive question UI for pi-coding-agent
  *
@@ -12,7 +11,10 @@ import type {
   ExtensionContext,
   Theme,
 } from '@earendil-works/pi-coding-agent'
-import { getMarkdownTheme } from '@earendil-works/pi-coding-agent'
+import {
+  getMarkdownTheme,
+  SettingsManager,
+} from '@earendil-works/pi-coding-agent'
 import {
   type Component,
   Container,
@@ -23,6 +25,7 @@ import {
   Key,
   type Keybinding,
   type KeybindingsManager,
+  type KeyId,
   Markdown,
   type MarkdownTheme,
   matchesKey,
@@ -33,7 +36,7 @@ import {
   truncateToWidth,
   wrapTextWithAnsi,
 } from '@earendil-works/pi-tui'
-import { type Static, type TUnsafe, Type } from '@sinclair/typebox'
+import { type Static, Type } from '@sinclair/typebox'
 import {
   type QuestionOption,
   renderSingleSelectRows,
@@ -44,40 +47,7 @@ const ASK_USER_VERSION: string = (
   _require('../package.json') as { version: string }
 ).version
 
-/**
- * Emit a flat `{ type: "string", enum: [...] }` JSON Schema instead of the
- * `anyOf`/`oneOf` shape that `Type.Union([Type.Literal()])` produces. Google's
- * function-calling API rejects the union form. Local copy of pi-ai's StringEnum
- * to avoid a peer dependency for one helper.
- */
-function StringEnum<const T extends readonly string[]>(
-  values: T,
-  options?: { description?: string; default?: T[number] },
-): TUnsafe<T[number]> {
-  return Type.Unsafe<T[number]>({
-    type: 'string',
-    enum: [...values],
-    ...(options?.description ? { description: options.description } : {}),
-    ...(options?.default !== undefined ? { default: options.default } : {}),
-  })
-}
-
-type AskOptionInput = QuestionOption | string
-
 type AskDisplayMode = 'overlay' | 'inline'
-
-interface AskParams {
-  question: string
-  context?: string
-  options?: AskOptionInput[]
-  allowMultiple?: boolean
-  allowFreeform?: boolean
-  allowComment?: boolean
-  displayMode?: AskDisplayMode
-  overlayToggleKey?: string | null
-  commentToggleKey?: string | null
-  timeout?: number
-}
 
 type AskResponse =
   | {
@@ -90,33 +60,7 @@ type AskResponse =
       text: string
     }
 
-interface AskToolDetails {
-  question: string
-  context?: string
-  options: QuestionOption[]
-  response: AskResponse | null
-  cancelled: boolean
-}
-
 type AskUIResult = AskResponse
-
-function normalizeOptions(options: AskOptionInput[]): QuestionOption[] {
-  return options
-    .map((option) => {
-      if (typeof option === 'string') {
-        return { title: option }
-      }
-      if (
-        option &&
-        typeof option === 'object' &&
-        typeof option.title === 'string'
-      ) {
-        return { title: option.title, description: option.description }
-      }
-      return null
-    })
-    .filter((option): option is QuestionOption => option !== null)
-}
 
 function formatOptionsForMessage(options: QuestionOption[]): string {
   return options
@@ -160,34 +104,68 @@ function createSelectionResponse(
     : { kind: 'selection', selections: normalizedSelections }
 }
 
-function formatResponseSummary(response: AskResponse): string {
-  if (response.kind === 'freeform') return response.text
-
-  const selections = response.selections.join(', ')
-  return response.comment ? `${selections} — ${response.comment}` : selections
-}
-
 function buildCommentPrompt(prompt: string, selections: string[]): string {
   const label = selections.length === 1 ? 'Selected option' : 'Selected options'
   const lines = selections.map((selection) => `- ${selection}`).join('\n')
   return `${prompt}\n\n${label}:\n${lines}`
 }
 
-function parseDialogSelections(input: string): string[] {
+function parseDialogSelections(
+  input: string,
+  options: QuestionOption[] = [],
+): string[] {
   return input
     .split(',')
     .map((selection) => selection.trim())
     .filter(Boolean)
+    .map((selection) => {
+      const optionNumber = Number.parseInt(selection, 10)
+      if (
+        String(optionNumber) === selection &&
+        optionNumber >= 1 &&
+        optionNumber <= options.length
+      ) {
+        return options[optionNumber - 1]?.title ?? selection
+      }
+      return selection
+    })
 }
 
 function isCancelledInput(value: unknown): value is null | undefined {
   return value === null || value === undefined
 }
 
-function isSelectionResponse(
-  response: AskResponse,
-): response is Extract<AskResponse, { kind: 'selection' }> {
-  return response.kind === 'selection'
+function normalizeDialogText(value: unknown): string | null {
+  if (isCancelledInput(value)) return null
+  return typeof value === 'string' ? value : null
+}
+
+function waitForDialogValue(
+  promise: Promise<unknown>,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  if (!signal) return promise
+  if (signal.aborted) return Promise.resolve(null)
+
+  return new Promise((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener('abort', onAbort)
+    const onAbort = () => {
+      cleanup()
+      resolve(null)
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        cleanup()
+        resolve(value)
+      },
+      (error) => {
+        cleanup()
+        reject(error)
+      },
+    )
+  })
 }
 
 function createSelectListTheme(theme: Theme) {
@@ -236,7 +214,7 @@ class BoxBorderTop implements Component {
     return [
       this.color('╭─') +
         titleStyle(label) +
-        this.color('─'.repeat(Math.max(0, remaining)) + '╮'),
+        this.color(`${'─'.repeat(Math.max(0, remaining))}╮`),
     ]
   }
 }
@@ -264,7 +242,7 @@ class BoxBorderBottom implements Component {
     const leftDashes = inner - tag.length - 1
     const style = this.labelColor ?? this.color
     return [
-      this.color('╰' + '─'.repeat(Math.max(0, leftDashes))) +
+      this.color(`╰${'─'.repeat(Math.max(0, leftDashes))}`) +
         style(tag) +
         this.color('─╯'),
     ]
@@ -300,7 +278,7 @@ interface ResolvedAskShortcuts {
 const DISABLED_SHORTCUT: ResolvedShortcut = {
   disabled: true,
   spec: null,
-  matches: ((_data: string) => false) as (data: string) => false,
+  matches: () => false,
 }
 
 const SHORTCUT_DISABLE_VALUES = new Set(['off', 'none', 'disabled', ''])
@@ -330,18 +308,16 @@ function buildShortcut(spec: string): ResolvedShortcut {
   return {
     disabled: false,
     spec,
-    matches: (data: string) => matchesKey(data, spec as any),
+    matches: (data: string) => matchesKey(data, spec as KeyId),
   }
 }
 
 function resolveShortcut(
-  paramValue: string | null | undefined,
-  envValue: string | undefined,
+  configuredValue: string | null | undefined,
   defaultSpec: string,
 ): ResolvedShortcut {
   const candidates: Array<string | null | undefined> = [
-    paramValue,
-    envValue,
+    configuredValue,
     defaultSpec,
   ]
   for (const raw of candidates) {
@@ -363,8 +339,10 @@ const SINGLE_SELECT_SPLIT_PANE_MIN_WIDTH = 84
 const SINGLE_SELECT_SPLIT_PANE_LEFT_MIN_WIDTH = 32
 const SINGLE_SELECT_SPLIT_PANE_RIGHT_MIN_WIDTH = 28
 const SINGLE_SELECT_SPLIT_PANE_SEPARATOR = ' │ '
-const FREEFORM_SENTINEL = '\u270f\ufe0f Type custom response...'
+const FREEFORM_SENTINEL = 'None of the above'
+const FREEFORM_DESCRIPTION = 'Enter a custom response'
 const COMMENT_TOGGLE_LABEL = 'Add extra context after selection'
+const USER_NOTE_PREFIX = 'user_note: '
 const DEFAULT_OVERLAY_TOGGLE_KEY = 'alt+o'
 const DEFAULT_COMMENT_TOGGLE_KEY = 'ctrl+g'
 
@@ -372,36 +350,18 @@ function buildCustomUIOptions(
   displayMode: AskDisplayMode,
   onHandle?: (handle: OverlayHandle) => void,
 ) {
-  switch (displayMode) {
-    case 'inline':
-      return undefined
-    case 'overlay':
-      return {
-        overlay: true,
-        overlayOptions: {
-          anchor: 'center' as const,
-          width: ASK_OVERLAY_WIDTH,
-          minWidth: ASK_OVERLAY_MIN_WIDTH,
-          maxHeight: '85%' as const,
-          margin: 1,
-        },
-        ...(onHandle ? { onHandle } : {}),
-      }
-    default: {
-      const _exhaustive: never = displayMode
-      void _exhaustive
-      return {
-        overlay: true,
-        overlayOptions: {
-          anchor: 'center' as const,
-          width: ASK_OVERLAY_WIDTH,
-          minWidth: ASK_OVERLAY_MIN_WIDTH,
-          maxHeight: '85%' as const,
-          margin: 1,
-        },
-        ...(onHandle ? { onHandle } : {}),
-      }
-    }
+  if (displayMode === 'inline') return undefined
+
+  return {
+    overlay: true,
+    overlayOptions: {
+      anchor: 'center' as const,
+      width: ASK_OVERLAY_WIDTH,
+      minWidth: ASK_OVERLAY_MIN_WIDTH,
+      maxHeight: '85%' as const,
+      margin: 1,
+    },
+    ...(onHandle ? { onHandle } : {}),
   }
 }
 
@@ -618,8 +578,8 @@ class MultiSelectList implements Component {
       }
 
       if (this.isFreeformRow(i)) {
-        const label = theme.fg('text', theme.bold('Type something.'))
-        const desc = theme.fg('muted', 'Enter a custom response')
+        const label = theme.fg('text', theme.bold(FREEFORM_SENTINEL))
+        const desc = theme.fg('muted', FREEFORM_DESCRIPTION)
         const line = `${prefix}   ${label} ${theme.fg('dim', '—')} ${desc}`
         lines.push(truncateToWidth(line, width, ''))
         continue
@@ -1144,7 +1104,7 @@ class AskComponent extends Container {
   // Static layout components
   private titleText: Text
   private questionText: Text
-  private contextComponent?: Component
+  private contextComponent?: Markdown | Text
   private modeContainer: Container
   private helpText: Text
 
@@ -1161,7 +1121,7 @@ class AskComponent extends Container {
   set focused(value: boolean) {
     this._focused = value
     if (this.editor && (this.mode === 'freeform' || this.mode === 'comment')) {
-      ;(this.editor as any).focused = value
+      this.editor.focused = value
     }
   }
 
@@ -1323,11 +1283,9 @@ class AskComponent extends Container {
     this.questionText.setText(theme.fg('text', theme.bold(this.question)))
     if (this.contextComponent && this.context) {
       if (this.contextComponent instanceof Markdown) {
-        ;(this.contextComponent as Markdown).setText(
-          `**Context:**\n${this.context}`,
-        )
+        this.contextComponent.setText(`**Context:**\n${this.context}`)
       } else {
-        ;(this.contextComponent as Text).setText(
+        this.contextComponent.setText(
           `${theme.fg('accent', theme.bold('Context:'))}\n${theme.fg('dim', this.context)}`,
         )
       }
@@ -1464,10 +1422,8 @@ class AskComponent extends Container {
 
   private saveEditorDraft(): void {
     if (!this.editor) return
-    const getText = (this.editor as any).getText
-    if (typeof getText !== 'function') return
 
-    const currentText = String(getText.call(this.editor) ?? '')
+    const currentText = this.editor.getText()
     if (this.mode === 'freeform') {
       this.freeformDraft = currentText
     } else if (this.mode === 'comment') {
@@ -1476,11 +1432,7 @@ class AskComponent extends Container {
   }
 
   private setEditorText(text: string): void {
-    const editor = this.ensureEditor()
-    const setText = (editor as any).setText
-    if (typeof setText === 'function') {
-      setText.call(editor, text)
-    }
+    this.ensureEditor().setText(text)
   }
 
   private handleSelectionSubmit(
@@ -1539,7 +1491,7 @@ class AskComponent extends Container {
 
     const editor = this.ensureEditor()
     this.setEditorText(this.freeformDraft)
-    ;(editor as any).focused = this._focused
+    editor.focused = this._focused
 
     this.modeContainer.addChild(
       new Text(
@@ -1566,7 +1518,7 @@ class AskComponent extends Container {
 
     const editor = this.ensureEditor()
     this.setEditorText(this.commentDraft)
-    ;(editor as any).focused = this._focused
+    editor.focused = this._focused
 
     const selectedLabel =
       this.pendingSelections.length === 1
@@ -1618,8 +1570,21 @@ class AskComponent extends Container {
  * RPC/headless fallback: use dialog methods (select/input) instead of the rich TUI overlay.
  * ctx.ui.custom() returns undefined in RPC mode, so we degrade gracefully.
  */
+interface DialogUI {
+  select(
+    prompt: string,
+    options: string[],
+    dialogOptions?: { timeout?: number },
+  ): Promise<unknown>
+  input(
+    prompt: string,
+    placeholder: string,
+    dialogOptions?: { timeout?: number },
+  ): Promise<unknown>
+}
+
 async function askViaDialogs(
-  ui: { select: Function; input: Function },
+  ui: DialogUI,
   question: string,
   context: string | undefined,
   options: QuestionOption[],
@@ -1627,49 +1592,81 @@ async function askViaDialogs(
   allowFreeform: boolean,
   allowComment: boolean,
   timeout?: number,
+  signal?: AbortSignal,
 ): Promise<AskUIResult | null> {
   const dialogOpts = timeout ? { timeout } : undefined
   const prompt = context ? `${question}\n\nContext:\n${context}` : question
 
   if (allowMultiple) {
-    const optionList = formatOptionsForMessage(options)
-    const rawSelections = (await ui.input(
-      `${prompt}\n\nOptions (select one or more):\n${optionList}`,
-      'Type your selection(s)...',
-      dialogOpts,
-    )) as string | undefined
-    if (isCancelledInput(rawSelections)) return null
+    const dialogOptions = allowFreeform
+      ? [
+          ...options,
+          { title: FREEFORM_SENTINEL, description: FREEFORM_DESCRIPTION },
+        ]
+      : options
+    const optionList = formatOptionsForMessage(dialogOptions)
+    const rawSelections = normalizeDialogText(
+      await waitForDialogValue(
+        ui.input(
+          `${prompt}\n\nOptions (select one or more):\n${optionList}`,
+          'Type your selection(s)...',
+          dialogOpts,
+        ),
+        signal,
+      ),
+    )
+    if (rawSelections === null) return null
 
-    const selections = parseDialogSelections(rawSelections)
+    const selections = parseDialogSelections(rawSelections, dialogOptions)
     if (selections.length === 0) return null
+
+    if (allowFreeform && selections.includes(FREEFORM_SENTINEL)) {
+      const answer = normalizeDialogText(
+        await waitForDialogValue(
+          ui.input(prompt, 'Type your answer...', dialogOpts),
+          signal,
+        ),
+      )
+      if (answer === null) return null
+      return createFreeformResponse(answer)
+    }
 
     if (!allowComment) {
       return createSelectionResponse(selections)
     }
 
-    const comment = (await ui.input(
-      buildCommentPrompt(prompt, selections),
-      'Optional comment (press Enter to skip)...',
-      dialogOpts,
-    )) as string | undefined
+    const comment = normalizeDialogText(
+      await waitForDialogValue(
+        ui.input(
+          buildCommentPrompt(prompt, selections),
+          'Optional comment (press Enter to skip)...',
+          dialogOpts,
+        ),
+        signal,
+      ),
+    )
     return createSelectionResponse(selections, comment)
   }
 
   const selectOptions = options.map((o) => o.title)
   if (allowFreeform) selectOptions.push(FREEFORM_SENTINEL)
 
-  const selected = (await ui.select(prompt, selectOptions, dialogOpts)) as
-    | string
-    | undefined
-  if (isCancelledInput(selected)) return null
+  const selected = normalizeDialogText(
+    await waitForDialogValue(
+      ui.select(prompt, selectOptions, dialogOpts),
+      signal,
+    ),
+  )
+  if (selected === null) return null
 
   if (selected === FREEFORM_SENTINEL) {
-    const answer = (await ui.input(
-      prompt,
-      'Type your answer...',
-      dialogOpts,
-    )) as string | undefined
-    if (isCancelledInput(answer)) return null
+    const answer = normalizeDialogText(
+      await waitForDialogValue(
+        ui.input(prompt, 'Type your answer...', dialogOpts),
+        signal,
+      ),
+    )
+    if (answer === null) return null
     return createFreeformResponse(answer)
   }
 
@@ -1677,16 +1674,77 @@ async function askViaDialogs(
     return createSelectionResponse([selected])
   }
 
-  const comment = (await ui.input(
-    buildCommentPrompt(prompt, [selected]),
-    'Optional comment (press Enter to skip)...',
-    dialogOpts,
-  )) as string | undefined
+  const comment = normalizeDialogText(
+    await waitForDialogValue(
+      ui.input(
+        buildCommentPrompt(prompt, [selected]),
+        'Optional comment (press Enter to skip)...',
+        dialogOpts,
+      ),
+      signal,
+    ),
+  )
   return createSelectionResponse([selected], comment)
 }
 
-const OTHER_OPTION_LABEL = 'None of the above'
-const OTHER_OPTION_DESCRIPTION = 'Optionally, add details in notes.'
+interface CodexAskUserSettings {
+  displayMode?: AskDisplayMode
+  overlayToggleKey?: string | null
+  commentToggleKey?: string | null
+  timeoutMs?: number
+  allowMultiple?: boolean
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizeCodexAskUserSettings(value: unknown): CodexAskUserSettings {
+  if (!isRecord(value)) return {}
+
+  const settings: CodexAskUserSettings = {}
+  if (value.displayMode === 'overlay' || value.displayMode === 'inline') {
+    settings.displayMode = value.displayMode
+  }
+  if (typeof value.overlayToggleKey === 'string') {
+    settings.overlayToggleKey = value.overlayToggleKey
+  } else if (value.overlayToggleKey === null) {
+    settings.overlayToggleKey = null
+  }
+  if (typeof value.commentToggleKey === 'string') {
+    settings.commentToggleKey = value.commentToggleKey
+  } else if (value.commentToggleKey === null) {
+    settings.commentToggleKey = null
+  }
+  if ('timeoutMs' in value) {
+    if (
+      typeof value.timeoutMs === 'number' &&
+      Number.isFinite(value.timeoutMs) &&
+      value.timeoutMs > 0
+    ) {
+      settings.timeoutMs = Math.floor(value.timeoutMs)
+    } else if (value.timeoutMs === null || value.timeoutMs === 0) {
+      settings.timeoutMs = undefined
+    }
+  }
+  if (typeof value.allowMultiple === 'boolean') {
+    settings.allowMultiple = value.allowMultiple
+  }
+  return settings
+}
+
+function readCodexAskUserSettings(cwd: string): CodexAskUserSettings {
+  const manager = SettingsManager.create(cwd)
+  const globalSettings = manager.getGlobalSettings() as Record<string, unknown>
+  const projectSettings = manager.getProjectSettings() as Record<
+    string,
+    unknown
+  >
+  return {
+    ...normalizeCodexAskUserSettings(globalSettings.piCodexAskUser),
+    ...normalizeCodexAskUserSettings(projectSettings.piCodexAskUser),
+  }
+}
 
 const requestUserInputOptionSchema = Type.Object(
   {
@@ -1710,6 +1768,8 @@ const requestUserInputQuestionSchema = Type.Object(
       description: 'Single-sentence prompt shown to the user.',
     }),
     options: Type.Array(requestUserInputOptionSchema, {
+      minItems: 2,
+      maxItems: 3,
       description:
         'Provide 2-3 mutually exclusive choices. Put the recommended option first and suffix its label with "(Recommended)". Do not include an "Other" option in this list; the client will add a free-form "Other" option automatically.',
     }),
@@ -1720,6 +1780,8 @@ const requestUserInputQuestionSchema = Type.Object(
 const requestUserInputSchema = Type.Object(
   {
     questions: Type.Array(requestUserInputQuestionSchema, {
+      minItems: 1,
+      maxItems: 3,
       description: 'Questions to show the user. Prefer 1 and do not exceed 3',
     }),
   },
@@ -1744,6 +1806,10 @@ interface RequestUserInputToolDetails {
   error?: string
 }
 
+function powerShellSingleQuoted(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
+}
+
 function windowsToastScript(title: string, body: string): string {
   const type = 'Windows.UI.Notifications'
   const mgr = `[${type}.ToastNotificationManager, ${type}, ContentType = WindowsRuntime]`
@@ -1752,8 +1818,8 @@ function windowsToastScript(title: string, body: string): string {
   return [
     `${mgr} > $null`,
     `$xml = [${type}.ToastNotificationManager]::GetTemplateContent(${template})`,
-    `$xml.GetElementsByTagName('text')[0].AppendChild($xml.CreateTextNode('${body}')) > $null`,
-    `[${type}.ToastNotificationManager]::CreateToastNotifier('${title}').Show(${toast})`,
+    `$xml.GetElementsByTagName('text')[0].AppendChild($xml.CreateTextNode(${powerShellSingleQuoted(body)})) > $null`,
+    `[${type}.ToastNotificationManager]::CreateToastNotifier(${powerShellSingleQuoted(title)}).Show(${toast})`,
   ].join('; ')
 }
 
@@ -1787,38 +1853,124 @@ function notify(title: string, body: string): void {
   }
 }
 
-function validateRequestUserInputArgs(
-  params: RequestUserInputArgs,
-): string | undefined {
-  if (!Array.isArray(params.questions) || params.questions.length === 0) {
-    return 'request_user_input requires at least one question'
+function normalizeRequiredString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed ? trimmed : null
+}
+
+function parseRequestUserInputArgs(
+  params: unknown,
+): { ok: true; args: RequestUserInputArgs } | { ok: false; error: string } {
+  if (!isRecord(params) || !Array.isArray(params.questions)) {
+    return {
+      ok: false,
+      error: 'request_user_input requires at least one question',
+    }
+  }
+  if (params.questions.length === 0) {
+    return {
+      ok: false,
+      error: 'request_user_input requires at least one question',
+    }
   }
   if (params.questions.length > 3) {
-    return 'request_user_input supports at most three questions'
+    return {
+      ok: false,
+      error: 'request_user_input supports at most three questions',
+    }
   }
-  const missingOptions = params.questions.some(
-    (question) =>
-      !Array.isArray(question.options) || question.options.length === 0,
-  )
-  if (missingOptions) {
-    return 'request_user_input requires non-empty options for every question'
+
+  const questions: RequestUserInputQuestion[] = []
+  const questionIds = new Set<string>()
+  for (const question of params.questions) {
+    if (!isRecord(question) || !Array.isArray(question.options)) {
+      return {
+        ok: false,
+        error:
+          'request_user_input requires id, header, question, and 2-3 options for every question',
+      }
+    }
+
+    const id = normalizeRequiredString(question.id)
+    const header = normalizeRequiredString(question.header)
+    const prompt = normalizeRequiredString(question.question)
+    if (
+      !id ||
+      !header ||
+      !prompt ||
+      question.options.length < 2 ||
+      question.options.length > 3
+    ) {
+      return {
+        ok: false,
+        error:
+          'request_user_input requires id, header, question, and 2-3 options for every question',
+      }
+    }
+    if (questionIds.has(id)) {
+      return {
+        ok: false,
+        error: 'request_user_input requires unique question ids',
+      }
+    }
+    questionIds.add(id)
+
+    const options = []
+    const optionLabels = new Set<string>()
+    for (const option of question.options) {
+      if (!isRecord(option)) {
+        return {
+          ok: false,
+          error:
+            'request_user_input requires label and description for every option',
+        }
+      }
+      const label = normalizeRequiredString(option.label)
+      const description = normalizeRequiredString(option.description)
+      if (!label || !description) {
+        return {
+          ok: false,
+          error:
+            'request_user_input requires label and description for every option',
+        }
+      }
+      if (label === FREEFORM_SENTINEL || label.startsWith(USER_NOTE_PREFIX)) {
+        return {
+          ok: false,
+          error:
+            'request_user_input option labels must not use reserved labels',
+        }
+      }
+      if (optionLabels.has(label)) {
+        return {
+          ok: false,
+          error:
+            'request_user_input requires unique option labels for every question',
+        }
+      }
+      optionLabels.add(label)
+      options.push({ label, description })
+    }
+
+    questions.push({
+      id,
+      header,
+      question: prompt,
+      options,
+    })
   }
-  return undefined
+
+  return { ok: true, args: { questions } }
 }
 
 function codexOptionsForQuestion(
   question: RequestUserInputQuestion,
 ): QuestionOption[] {
-  return [
-    ...question.options.map((option) => ({
-      title: option.label,
-      description: option.description,
-    })),
-    {
-      title: OTHER_OPTION_LABEL,
-      description: OTHER_OPTION_DESCRIPTION,
-    },
-  ]
+  return question.options.map((option) => ({
+    title: option.label,
+    description: option.description,
+  }))
 }
 
 function contextForQuestion(
@@ -1838,7 +1990,7 @@ function answerFromUIResult(result: AskUIResult): RequestUserInputAnswer {
   const answers = [...result.selections]
   const comment = normalizeOptionalComment(result.comment)
   if (comment) {
-    answers.push(`user_note: ${comment}`)
+    answers.push(`${USER_NOTE_PREFIX}${comment}`)
   }
   return { answers }
 }
@@ -1853,29 +2005,42 @@ function formatCodexResponseSummary(
     .join('; ')
 }
 
+function formatQuestionsForNoUiPrompt(
+  questions: RequestUserInputQuestion[],
+): string {
+  return questions
+    .map((question, index) => {
+      const optionLines = codexOptionsForQuestion(question)
+        .map((option, optionIndex) => {
+          const desc = option.description ? ` — ${option.description}` : ''
+          return `${optionIndex + 1}. ${option.title}${desc}`
+        })
+        .join('\n')
+      return [
+        `${index + 1}. ${question.header}: ${question.question}`,
+        optionLines,
+        `${FREEFORM_SENTINEL} — ${FREEFORM_DESCRIPTION}`,
+      ].join('\n')
+    })
+    .join('\n\n')
+}
+
 async function askCodexQuestion(
   ctx: ExtensionContext,
   signal: AbortSignal | undefined,
   question: RequestUserInputQuestion,
   questionIndex: number,
   questionCount: number,
+  settings: CodexAskUserSettings,
 ): Promise<AskUIResult | null> {
-  const envMode =
-    process.env.PI_CODEX_ASK_USER_DISPLAY_MODE ??
-    process.env.PI_ASK_USER_DISPLAY_MODE
-  const effectiveDisplayMode: AskDisplayMode =
-    envMode === 'inline' ? 'inline' : 'overlay'
+  const effectiveDisplayMode: AskDisplayMode = settings.displayMode ?? 'overlay'
   const shortcuts: ResolvedAskShortcuts = {
     overlayToggle: resolveShortcut(
-      undefined,
-      process.env.PI_CODEX_ASK_USER_OVERLAY_TOGGLE_KEY ??
-        process.env.PI_ASK_USER_OVERLAY_TOGGLE_KEY,
+      settings.overlayToggleKey,
       DEFAULT_OVERLAY_TOGGLE_KEY,
     ),
     commentToggle: resolveShortcut(
-      undefined,
-      process.env.PI_CODEX_ASK_USER_COMMENT_TOGGLE_KEY ??
-        process.env.PI_ASK_USER_COMMENT_TOGGLE_KEY,
+      settings.commentToggleKey,
       DEFAULT_COMMENT_TOGGLE_KEY,
     ),
   }
@@ -1885,10 +2050,13 @@ async function askCodexQuestion(
     questionIndex,
     questionCount,
   )
+  const timeout = settings.timeoutMs
+  const allowMultiple = settings.allowMultiple ?? false
 
   let result: AskUIResult | null
   let overlayHandle: OverlayHandle | undefined
   let removeOverlayInputListener: (() => void) | undefined
+  let cleanupCustomFactory: (() => void) | undefined
   let hasAnnouncedHide = false
 
   try {
@@ -1898,24 +2066,44 @@ async function askCodexQuestion(
       keybindings: KeybindingsManager,
       done: (result: AskUIResult | null) => void,
     ) => {
+      let finished = false
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+      let onAbort: (() => void) | undefined
+      const cleanup = () => {
+        if (timeoutId) clearTimeout(timeoutId)
+        if (signal && onAbort) signal.removeEventListener('abort', onAbort)
+        cleanupCustomFactory = undefined
+      }
+      cleanupCustomFactory = cleanup
+      const finish = (value: AskUIResult | null) => {
+        if (finished) return
+        finished = true
+        cleanup()
+        done(value)
+      }
+
       if (signal) {
-        const onAbort = () => done(null)
+        onAbort = () => finish(null)
         signal.addEventListener('abort', onAbort, { once: true })
+      }
+
+      if (timeout) {
+        timeoutId = setTimeout(() => finish(null), timeout)
       }
 
       return new AskComponent(
         question.question,
         normalizedContext,
         options,
-        false,
-        false,
+        allowMultiple,
+        true,
         true,
         effectiveDisplayMode,
         tui,
         theme,
         keybindings,
         shortcuts,
-        done,
+        finish,
       )
     }
 
@@ -1955,12 +2143,15 @@ async function askCodexQuestion(
         question.question,
         normalizedContext,
         options,
-        false,
-        false,
+        allowMultiple,
         true,
+        true,
+        timeout,
+        signal,
       )
     }
   } finally {
+    cleanupCustomFactory?.()
     removeOverlayInputListener?.()
   }
 
@@ -1991,19 +2182,20 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
       onUpdate,
       ctx,
     ) {
-      const validationError = validateRequestUserInputArgs(params)
-      if (validationError) {
+      const parsed = parseRequestUserInputArgs(params)
+      if (!parsed.ok) {
         return {
-          content: [{ type: 'text' as const, text: validationError }],
+          content: [{ type: 'text' as const, text: parsed.error }],
           isError: true,
           details: {
-            questions: params.questions ?? [],
+            questions: [],
             response: null,
             cancelled: true,
-            error: validationError,
+            error: parsed.error,
           } as RequestUserInputToolDetails,
         }
       }
+      const { questions } = parsed.args
 
       if (signal?.aborted) {
         return {
@@ -2015,7 +2207,7 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
           ],
           isError: true,
           details: {
-            questions: params.questions,
+            questions,
             response: null,
             cancelled: true,
           } as RequestUserInputToolDetails,
@@ -2023,12 +2215,14 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
       }
 
       if (!ctx.hasUI || !ctx.ui) {
-        const message = 'request_user_input requires interactive Pi UI'
+        const message =
+          'request_user_input requires interactive Pi UI. Please answer:'
+        const prompt = formatQuestionsForNoUiPrompt(questions)
         return {
-          content: [{ type: 'text' as const, text: message }],
+          content: [{ type: 'text' as const, text: `${message}\n\n${prompt}` }],
           isError: true,
           details: {
-            questions: params.questions,
+            questions,
             response: null,
             cancelled: true,
             error: message,
@@ -2039,7 +2233,7 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
       onUpdate?.({
         content: [{ type: 'text' as const, text: 'Waiting for user input...' }],
         details: {
-          questions: params.questions,
+          questions,
           response: null,
           cancelled: false,
         } as RequestUserInputToolDetails,
@@ -2047,12 +2241,13 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
       ctx.ui.notify?.('request_user_input is waiting for your input', 'info')
       notify('Pi', 'Input needed')
       pi.events.emit('request_user_input:waiting', {
-        questions: params.questions,
+        questions,
       })
 
+      const settings = readCodexAskUserSettings(ctx.cwd)
       const response: RequestUserInputResponse = { answers: {} }
       try {
-        for (const [index, question] of params.questions.entries()) {
+        for (const [index, question] of questions.entries()) {
           if (signal?.aborted) {
             throw new Error(
               'request_user_input was cancelled before receiving a response',
@@ -2064,7 +2259,8 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
             signal,
             question,
             index,
-            params.questions.length,
+            questions.length,
+            settings,
           )
           if (result === null) {
             throw new Error(
@@ -2076,14 +2272,14 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         pi.events.emit('request_user_input:cancelled', {
-          questions: params.questions,
+          questions,
           error: message,
         })
         return {
           content: [{ type: 'text' as const, text: message }],
           isError: true,
           details: {
-            questions: params.questions,
+            questions,
             response: null,
             cancelled: true,
             error: message,
@@ -2092,13 +2288,13 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
       }
 
       pi.events.emit('request_user_input:answered', {
-        questions: params.questions,
+        questions,
         response,
       })
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(response) }],
         details: {
-          questions: params.questions,
+          questions,
           response,
           cancelled: false,
         } as RequestUserInputToolDetails,
@@ -2106,15 +2302,21 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      const questions = Array.isArray(args.questions)
-        ? (args.questions as RequestUserInputQuestion[])
-        : []
+      const questions =
+        isRecord(args) && Array.isArray(args.questions)
+          ? (args.questions as RequestUserInputQuestion[])
+          : []
       let text = theme.fg('toolTitle', theme.bold('request_user_input '))
       text += theme.fg(
         'muted',
         `${questions.length} question${questions.length === 1 ? '' : 's'}`,
       )
-      const firstQuestion = questions[0]
+      const firstQuestion = questions.find(
+        (question): question is RequestUserInputQuestion =>
+          isRecord(question) &&
+          typeof question.header === 'string' &&
+          typeof question.question === 'string',
+      )
       if (firstQuestion) {
         text +=
           '\n' +
@@ -2151,8 +2353,43 @@ export default function registerCodexAskUser(pi: ExtensionAPI) {
       if (options.expanded) {
         for (const question of details.questions) {
           const answer = details.response.answers[question.id]
+          const answers = answer?.answers ?? []
+          const optionTitles = new Set(
+            codexOptionsForQuestion(question).map((option) => option.title),
+          )
+          const hasStructuredSelection = answers.some((value) =>
+            optionTitles.has(value),
+          )
+          const isCommentAnswer = (value: string) =>
+            hasStructuredSelection &&
+            value.startsWith(USER_NOTE_PREFIX) &&
+            !optionTitles.has(value)
+          const notes = answers.filter(isCommentAnswer)
+          const selectedAnswers = answers.filter(
+            (value) => !isCommentAnswer(value),
+          )
+          const selectedSet = new Set(selectedAnswers)
+          const freeformAnswers = selectedAnswers.filter(
+            (value) => !optionTitles.has(value),
+          )
+
           text += `\n${theme.fg('dim', `${question.header}: ${question.question}`)}`
-          text += `\n  ${theme.fg('dim', answer?.answers.join(', ') || '(no answer)')}`
+          text += `\n${theme.fg('dim', 'Options:')}`
+          for (const option of codexOptionsForQuestion(question)) {
+            const desc = option.description ? ` — ${option.description}` : ''
+            const marker = selectedSet.has(option.title)
+              ? theme.fg('success', '●')
+              : theme.fg('dim', '○')
+            text += `\n  ${marker} ${theme.fg('dim', option.title)}${theme.fg('dim', desc)}`
+          }
+          if (freeformAnswers.length > 0) {
+            text += `\n  ${theme.fg('success', '●')} ${theme.fg('dim', `${FREEFORM_SENTINEL}: ${freeformAnswers.join(', ')}`)}`
+          } else {
+            text += `\n  ${theme.fg('dim', '○')} ${theme.fg('dim', FREEFORM_SENTINEL)}`
+          }
+          for (const note of notes) {
+            text += `\n${theme.fg('dim', 'Comment:')} ${theme.fg('dim', note.slice(USER_NOTE_PREFIX.length))}`
+          }
         }
       }
 

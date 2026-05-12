@@ -34,6 +34,7 @@
   "pi": {
     "extensions": [
       "./packages/pi-auto-name/src/index.ts",
+      "./packages/pi-powerline-footer/index.ts",
       "./packages/pi-multicodex/index.ts",
       "./packages/pi-skillpacks/src/skillpack-session-loader.ts",
       "./packages/pi-worktrunk/src/index.ts",

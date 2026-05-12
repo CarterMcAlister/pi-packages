@@ -46,6 +46,7 @@ describe('getOpenAICodexMirror', () => {
         id: m.id,
         name: m.name,
         reasoning: m.reasoning,
+        thinkingLevelMap: m.thinkingLevelMap,
         input: m.input,
         cost: m.cost,
         contextWindow: m.contextWindow,
@@ -54,6 +55,20 @@ describe('getOpenAICodexMirror', () => {
     }
 
     expect(getOpenAICodexMirror()).toEqual(expected)
+  })
+
+  it('preserves gpt-5.5 thinking levels', () => {
+    const sourceModel = getModels('openai-codex').find(
+      (m) => m.id === 'gpt-5.5',
+    )
+    const model = getOpenAICodexMirror().models.find((m) => m.id === 'gpt-5.5')
+
+    expect(model?.reasoning).toBe(true)
+    expect(model?.thinkingLevelMap).toEqual(sourceModel?.thinkingLevelMap)
+    expect(model?.thinkingLevelMap).toMatchObject({
+      minimal: 'low',
+      xhigh: 'xhigh',
+    })
   })
 })
 

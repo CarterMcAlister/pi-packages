@@ -4,10 +4,15 @@ import { createStreamWrapper } from './stream-wrapper'
 
 export const PROVIDER_ID = 'openai-codex'
 
+type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+
+type ThinkingLevelMap = Partial<Record<ThinkingLevel, string | null>>
+
 export interface ProviderModelDef {
   id: string
   name: string
   reasoning: boolean
+  thinkingLevelMap?: ThinkingLevelMap
   input: ('text' | 'image')[]
   cost: {
     input: number
@@ -34,6 +39,9 @@ export function getOpenAICodexMirror(): {
       id: m.id,
       name: m.name,
       reasoning: m.reasoning,
+      thinkingLevelMap: m.thinkingLevelMap
+        ? { ...m.thinkingLevelMap }
+        : undefined,
       input: [...m.input],
       cost: { ...m.cost },
       contextWindow: m.contextWindow,

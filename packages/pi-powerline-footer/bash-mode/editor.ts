@@ -437,7 +437,8 @@ export class BashModeEditor extends CustomEditor {
       direction === 'left' ? 'moveWordBackwards' : 'moveWordForwards',
     )
     if (typeof mover === 'function') {
-      mover.call(this)
+      const moveWord = mover as () => void
+      moveWord.call(this)
     }
 
     const nextState = this.getEditorState()

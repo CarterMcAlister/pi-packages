@@ -1224,8 +1224,89 @@ export default function powerlineFooter(pi: ExtensionAPI) {
   let lastEditorInputAt = 0
 
   const getShellPath = () => process.env.SHELL || '/bin/sh'
-  const getShellCwd = () =>
-    shellSession?.state.cwd ?? currentCtx?.cwd ?? process.cwd()
+  const getAgentCwd = () => {
+    const getCwd = currentCtx?.sessionManager?.getCwd
+    if (typeof getCwd === 'function') {
+      try {
+        const cwd = getCwd.call(currentCtx.sessionManager)
+        if (typeof cwd === 'string' && cwd.length > 0) return cwd
+      } catch {}
+    }
+
+    return currentCtx?.cwd ?? process.cwd()
+  }
+  const getShellCwd = () => shellSession?.state.cwd ?? getAgentCwd()
+
+  const updateObjectCwdProperty = (target: unknown, cwd: string): boolean => {
+    if (!target || typeof target !== 'object') return false
+
+    try {
+      if (Reflect.set(target, 'cwd', cwd)) return true
+    } catch {}
+
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(target, 'cwd')
+      if (!descriptor || descriptor.configurable !== false) {
+        Object.defineProperty(target, 'cwd', {
+          configurable: true,
+          enumerable: descriptor?.enumerable ?? true,
+          get: () => cwd,
+        })
+        return true
+      }
+    } catch {}
+
+    return false
+  }
+
+  const updateSessionHeaderCwd = (sessionManager: any, cwd: string): void => {
+    if (!sessionManager || typeof sessionManager !== 'object') return
+
+    try {
+      const header =
+        typeof sessionManager.getHeader === 'function'
+          ? sessionManager.getHeader()
+          : undefined
+      if (header && typeof header === 'object') {
+        header.cwd = cwd
+      }
+
+      const rewriteFile = Reflect.get(sessionManager, '_rewriteFile')
+      if (typeof rewriteFile === 'function') {
+        rewriteFile.call(sessionManager)
+      }
+    } catch {}
+  }
+
+  const syncShellCwdToAgentMode = (cwd: string | undefined): boolean => {
+    if (!cwd || cwd === getAgentCwd()) return false
+
+    updateObjectCwdProperty(currentCtx, cwd)
+
+    const sessionManager = currentCtx?.sessionManager
+    updateObjectCwdProperty(sessionManager, cwd)
+    updateSessionHeaderCwd(sessionManager, cwd)
+
+    try {
+      if (existsSync(cwd)) process.chdir(cwd)
+    } catch {}
+
+    const setFooterCwd = footerDataRef
+      ? Reflect.get(footerDataRef, 'setCwd')
+      : undefined
+    if (typeof setFooterCwd === 'function') {
+      try {
+        setFooterCwd.call(footerDataRef, cwd)
+      } catch {}
+    }
+
+    customCompactionEnabled = detectCustomCompactionEnabled(cwd)
+    invalidateGitStatus()
+    invalidateGitBranch()
+    requestStatusRender()
+    return true
+  }
+
   const welcomeDismissScheduler = createWelcomeDismissScheduler({
     dismiss: (ctx: unknown) => dismissWelcome(ctx),
     getGeneration: () => sessionGeneration,
@@ -1354,11 +1435,11 @@ export default function powerlineFooter(pi: ExtensionAPI) {
     if (!shellSession) {
       shellSession = new ManagedShellSession(
         getShellPath(),
-        currentCtx?.cwd ?? process.cwd(),
+        getAgentCwd(),
         bashTranscript,
         requestStatusRender,
-        (command, cwd) =>
-          appendProjectHistory(currentCtx?.cwd ?? process.cwd(), command, cwd),
+        (command, cwd) => appendProjectHistory(getAgentCwd(), command, cwd),
+        syncShellCwdToAgentMode,
       )
     }
     await shellSession.ensureReady()
@@ -1408,6 +1489,7 @@ export default function powerlineFooter(pi: ExtensionAPI) {
   }
 
   const runShellCommand = async (command: string, ctx: any): Promise<void> => {
+    currentCtx = ctx ?? currentCtx
     try {
       const session = await ensureShellSession()
       await session.runCommand(command)
@@ -1419,6 +1501,7 @@ export default function powerlineFooter(pi: ExtensionAPI) {
   }
 
   const setBashModeActive = async (value: boolean, ctx: any): Promise<void> => {
+    currentCtx = ctx ?? currentCtx
     if (value === bashModeActive) return
     if (!value && shellSession?.state.running) {
       ctx.ui.notify(
@@ -1448,10 +1531,16 @@ export default function powerlineFooter(pi: ExtensionAPI) {
       return
     }
 
+    const changedCwd = syncShellCwdToAgentMode(shellSession?.state.cwd)
     bashModeActive = value
     currentEditor?.dismissBashModeUi?.()
     requestStatusRender()
-    ctx.ui.notify('Bash mode disabled', 'info')
+    ctx.ui.notify(
+      changedCwd
+        ? `Bash mode disabled; agent cwd is now ${getAgentCwd()}`
+        : 'Bash mode disabled',
+      'info',
+    )
   }
 
   function overlaySelectListTheme(theme: Theme) {

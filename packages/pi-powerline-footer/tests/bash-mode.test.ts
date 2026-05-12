@@ -465,18 +465,20 @@ test('deterministic path completion handles bash argument position', async () =>
 
 test('managed shell session preserves cwd changes across commands', async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'powerline-shell-'))
-  const childDir = join(cwd, 'child')
+  const childDir = join(cwd, 'child:with-colon')
   mkdirSync(childDir, { recursive: true })
   const store = new BashTranscriptStore({
     transcriptMaxLines: 100,
     transcriptMaxBytes: 64 * 1024,
   })
+  const cwdChanges: string[] = []
   const session = new ManagedShellSession(
     '/bin/zsh',
     cwd,
     store,
     () => {},
     () => {},
+    (nextCwd) => cwdChanges.push(nextCwd),
   )
 
   try {
@@ -492,6 +494,7 @@ test('managed shell session preserves cwd changes across commands', async () => 
 
     await waitForCommand()
     assert.equal(session.state.cwd, childDir)
+    assert.equal(cwdChanges.at(-1), childDir)
 
     await session.runCommand('pwd')
     await waitForCommand()

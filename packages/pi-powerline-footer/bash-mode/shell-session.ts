@@ -43,9 +43,50 @@ function quoteShellArg(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`
 }
 
+function parseCommandStartLine(line: string): {
+  id: string | undefined
+  cwd: string | undefined
+} {
+  const payload = line.slice(COMMAND_START_SENTINEL.length + 1)
+  const separatorIndex = payload.indexOf(':')
+  if (separatorIndex < 0) return { id: payload || undefined, cwd: undefined }
+  return {
+    id: payload.slice(0, separatorIndex) || undefined,
+    cwd: payload.slice(separatorIndex + 1) || undefined,
+  }
+}
+
+function parseCommandDoneLine(line: string): {
+  id: string | undefined
+  exitCode: number
+  cwd: string | undefined
+} {
+  const payload = line.slice(COMMAND_DONE_SENTINEL.length + 1)
+  const firstSeparatorIndex = payload.indexOf(':')
+  if (firstSeparatorIndex < 0) {
+    return { id: payload || undefined, exitCode: 1, cwd: undefined }
+  }
+
+  const id = payload.slice(0, firstSeparatorIndex) || undefined
+  const rest = payload.slice(firstSeparatorIndex + 1)
+  const secondSeparatorIndex = rest.indexOf(':')
+  const exitCodeText =
+    secondSeparatorIndex < 0 ? rest : rest.slice(0, secondSeparatorIndex)
+  const exitCode = Number.parseInt(exitCodeText || '1', 10)
+
+  return {
+    id,
+    exitCode: Number.isFinite(exitCode) ? exitCode : 1,
+    cwd:
+      secondSeparatorIndex < 0
+        ? undefined
+        : rest.slice(secondSeparatorIndex + 1) || undefined,
+  }
+}
+
 function getCloseExitCode(
-  code: number | null,
-  signal: NodeJS.Signals | string | number | null,
+  code: number | null | undefined,
+  signal: NodeJS.Signals | string | number | null | undefined,
 ): number {
   if (typeof code === 'number') {
     return code
@@ -144,6 +185,7 @@ export class ManagedShellSession {
   private readonly transcript: BashTranscriptStore
   private readonly onStateChange: () => void
   private readonly onCommandSuccess: (command: string, cwd: string) => void
+  private readonly onCwdChange: ((cwd: string) => void) | undefined
   private process: ChildProcessWithoutNullStreams | null = null
   private ptyProcess: pty.IPty | null = null
   private readonly tempDir = mkdtempSync(join(tmpdir(), 'powerline-bash-mode-'))
@@ -166,11 +208,13 @@ export class ManagedShellSession {
     transcript: BashTranscriptStore,
     onStateChange: () => void,
     onCommandSuccess: (command: string, cwd: string) => void,
+    onCwdChange?: (cwd: string) => void,
   ) {
     this.shellPath = shellPath
     this.transcript = transcript
     this.onStateChange = onStateChange
     this.onCommandSuccess = onCommandSuccess
+    this.onCwdChange = onCwdChange
     const shellName = basename(shellPath).toLowerCase()
     this.usePty = shellName.includes('fish')
     this.state = {
@@ -414,6 +458,12 @@ export class ManagedShellSession {
     return childPids.flatMap((pid) => [pid, ...this.collectChildPids(pid)])
   }
 
+  private updateCwd(cwd: string | undefined): void {
+    if (!cwd || cwd === this.state.cwd) return
+    this.state.cwd = cwd
+    this.onCwdChange?.(cwd)
+  }
+
   private handleChunk(chunk: string): void {
     const sanitized = stripAnsi(chunk).replace(/\r/g, '')
     const styled = keepSgrAnsi(chunk).replace(/\r/g, '')
@@ -432,8 +482,7 @@ export class ManagedShellSession {
       if (!this.state.ready) {
         if (line.startsWith(`${READY_SENTINEL}:`)) {
           this.state.ready = true
-          this.state.cwd =
-            line.slice(READY_SENTINEL.length + 1) || this.state.cwd
+          this.updateCwd(line.slice(READY_SENTINEL.length + 1))
           this.readyResolve?.()
           this.readyResolve = null
           this.readyReject = null
@@ -443,8 +492,8 @@ export class ManagedShellSession {
       }
 
       if (line.startsWith(`${COMMAND_START_SENTINEL}:`)) {
-        const [, id, cwd] = line.split(':')
-        if (cwd) this.state.cwd = cwd
+        const { id, cwd } = parseCommandStartLine(line)
+        this.updateCwd(cwd)
         this.currentCommandId = id ?? this.currentCommandId
         this.commandOutputActive = true
         this.onStateChange()
@@ -457,13 +506,8 @@ export class ManagedShellSession {
       }
 
       if (line.startsWith(`${COMMAND_DONE_SENTINEL}:`)) {
-        const [, id, exitCodeText, cwd] = line.split(':')
-        const exitCode = Number.parseInt(exitCodeText ?? '1', 10)
-        this.finishCurrentCommand(
-          id ?? this.currentCommandId,
-          Number.isFinite(exitCode) ? exitCode : 1,
-          cwd,
-        )
+        const { id, exitCode, cwd } = parseCommandDoneLine(line)
+        this.finishCurrentCommand(id ?? this.currentCommandId, exitCode, cwd)
         continue
       }
 
@@ -487,7 +531,7 @@ export class ManagedShellSession {
     }
     this.state.running = false
     this.state.lastExitCode = exitCode
-    if (cwd) this.state.cwd = cwd
+    this.updateCwd(cwd)
     if (id) {
       this.transcript.finishCommand(id, exitCode)
       const snapshot = this.transcript.getSnapshot()

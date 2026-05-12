@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Bash-mode cwd handoff** — Directory changes made in sticky bash mode are now synced back into Pi's normal agent session when the managed shell cwd changes, so leaving bash mode carries the new working directory forward.
+
 ## [0.5.1] - 2026-05-02
 
 ### Fixed

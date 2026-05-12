@@ -34,8 +34,10 @@
   "pi": {
     "extensions": [
       "./packages/pi-auto-name/src/index.ts",
+      "./packages/pi-agent-view/src/index.ts",
       "./packages/pi-powerline-footer/index.ts",
       "./packages/pi-multicodex/index.ts",
+      "./packages/pi-lens/index.ts",
       "./packages/pi-skillpacks/src/skillpack-session-loader.ts",
       "./packages/pi-worktrunk/src/index.ts",
       "./packages/pi-profiles/src/index.ts",
@@ -51,7 +53,11 @@
       "./packages/pi-utils/src/loop.ts",
       "./packages/pi-utils/src/notify.ts",
       "./packages/pi-utils/src/whimsical.ts",
+      "./packages/pi-utils/src/mac-key-display.ts",
       "./packages/pi-utils/src/pi-review-loop/index.ts"
+    ],
+    "skills": [
+      "./packages/pi-lens/skills"
     ]
   },
   "dependencies": {

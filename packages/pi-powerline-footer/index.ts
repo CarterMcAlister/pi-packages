@@ -315,6 +315,8 @@ const STREAMING_LAYOUT_CACHE_TTL_MS = 1000
 const STATUS_RENDER_DEBOUNCE_MS = 33
 const CONTEXT_STATUS_RENDER_MS = 250
 const EDITOR_STATUS_DEFER_MS = 150
+const BASH_MODE_WARMUP_DELAY_MS = 1500
+const BASH_MODE_WARMUP_IDLE_MS = 1000
 const PROMPT_HISTORY_TRACKED = Symbol.for('powerlinePromptHistoryTracked')
 const PROMPT_HISTORY_STATE_KEY = Symbol.for('powerlinePromptHistoryState')
 
@@ -1207,6 +1209,8 @@ export default function powerlineFooter(pi: ExtensionAPI) {
   let bashTranscript = new BashTranscriptStore(bashModeSettings)
   let bashCompletionEngine = new BashCompletionEngine()
   let shellSession: ManagedShellSession | null = null
+  let shellWarmupTimer: ReturnType<typeof setTimeout> | null = null
+  let shellWarmupPromise: Promise<void> | null = null
 
   // Cache for the top and secondary powerline widgets.
   let lastLayoutWidth = 0
@@ -1340,6 +1344,12 @@ export default function powerlineFooter(pi: ExtensionAPI) {
     return [...new Set([...project, ...global])]
   }
 
+  const clearShellWarmupTimer = () => {
+    if (!shellWarmupTimer) return
+    clearTimeout(shellWarmupTimer)
+    shellWarmupTimer = null
+  }
+
   const ensureShellSession = async (): Promise<ManagedShellSession> => {
     if (!shellSession) {
       shellSession = new ManagedShellSession(
@@ -1353,6 +1363,48 @@ export default function powerlineFooter(pi: ExtensionAPI) {
     }
     await shellSession.ensureReady()
     return shellSession
+  }
+
+  const warmShellSession = (generation: number) => {
+    if (!enabled || !currentCtx?.hasUI || generation !== sessionGeneration) {
+      shellWarmupPromise = null
+      return
+    }
+
+    if (
+      isStreaming ||
+      Date.now() - lastEditorInputAt < BASH_MODE_WARMUP_IDLE_MS
+    ) {
+      scheduleShellWarmup(currentCtx, BASH_MODE_WARMUP_DELAY_MS)
+      shellWarmupPromise = null
+      return
+    }
+
+    shellWarmupPromise = ensureShellSession()
+      .then(() => {
+        if (generation === sessionGeneration) {
+          requestStatusRender()
+        }
+      })
+      .catch((error) => {
+        if (generation === sessionGeneration) {
+          console.debug('[powerline-footer] Bash mode warmup failed:', error)
+        }
+      })
+      .finally(() => {
+        shellWarmupPromise = null
+      })
+  }
+
+  function scheduleShellWarmup(ctx: any, delayMs = BASH_MODE_WARMUP_DELAY_MS) {
+    if (!enabled || !ctx?.hasUI) return
+    clearShellWarmupTimer()
+    const generation = sessionGeneration
+    shellWarmupTimer = setTimeout(() => {
+      shellWarmupTimer = null
+      if (shellWarmupPromise) return
+      warmShellSession(generation)
+    }, delayMs)
   }
 
   const runShellCommand = async (command: string, ctx: any): Promise<void> => {
@@ -1377,6 +1429,7 @@ export default function powerlineFooter(pi: ExtensionAPI) {
     }
 
     if (value) {
+      clearShellWarmupTimer()
       try {
         const session = await ensureShellSession()
         bashModeActive = true
@@ -1478,6 +1531,8 @@ export default function powerlineFooter(pi: ExtensionAPI) {
 
   // Track session start
   pi.on('session_start', async (event, ctx) => {
+    clearShellWarmupTimer()
+    shellWarmupPromise = null
     shellSession?.dispose()
     shellSession = null
     sessionGeneration++
@@ -1516,6 +1571,7 @@ export default function powerlineFooter(pi: ExtensionAPI) {
 
     if (enabled && ctx.hasUI) {
       setupCustomEditor(ctx)
+      scheduleShellWarmup(ctx)
       if (event.reason === 'startup' && config.welcomeOverlay) {
         if (settings.quietStartup === true) {
           setupWelcomeHeader(ctx)
@@ -1536,6 +1592,8 @@ export default function powerlineFooter(pi: ExtensionAPI) {
     welcomeOverlayShouldDismiss = false
     welcomeDismissScheduler.cancel()
     statusRenderScheduler.cancel()
+    clearShellWarmupTimer()
+    shellWarmupPromise = null
     restoreFooterStatusRepaintHook?.()
     restoreFooterStatusRepaintHook = null
     teardownFixedEditorCompositor({ resetExtendedKeyboardModes: true })
@@ -2062,6 +2120,7 @@ export default function powerlineFooter(pi: ExtensionAPI) {
       }
     }
     requestStatusRender()
+    scheduleShellWarmup(ctx)
   })
 
   // Command to toggle/configure
@@ -2076,8 +2135,11 @@ export default function powerlineFooter(pi: ExtensionAPI) {
         enabled = !enabled
         if (enabled) {
           setupCustomEditor(ctx)
+          scheduleShellWarmup(ctx)
           ctx.ui.notify('Powerline enabled', 'info')
         } else {
+          clearShellWarmupTimer()
+          shellWarmupPromise = null
           shellSession?.dispose()
           shellSession = null
           bashTranscript.clear()
@@ -2302,6 +2364,8 @@ export default function powerlineFooter(pi: ExtensionAPI) {
   pi.registerCommand('bash-reset', {
     description: 'Reset the managed bash session',
     handler: async (_args, ctx) => {
+      clearShellWarmupTimer()
+      shellWarmupPromise = null
       shellSession?.dispose()
       shellSession = null
       bashTranscript.clear()
@@ -2317,6 +2381,9 @@ export default function powerlineFooter(pi: ExtensionAPI) {
         }
       }
       requestStatusRender()
+      if (!bashModeActive) {
+        scheduleShellWarmup(ctx)
+      }
       ctx.ui.notify('Bash session reset', 'info')
     },
   })
@@ -2868,6 +2935,10 @@ export default function powerlineFooter(pi: ExtensionAPI) {
       getShowHardwareCursor: () =>
         typeof tui.getShowHardwareCursor === 'function' &&
         tui.getShowHardwareCursor(),
+      renderRootAppendLines: (width) => {
+        const theme = currentCtx?.ui?.theme ?? ctx.ui.theme
+        return renderBashTranscriptLines(width, theme)
+      },
       renderCluster: (width, terminalRows) => {
         const theme = currentCtx?.ui?.theme ?? ctx.ui.theme
         const aboveWidgetLines = fixedWidgetContainerAbove
@@ -2891,7 +2962,6 @@ export default function powerlineFooter(pi: ExtensionAPI) {
             ...renderPowerlineSecondaryLines(width, theme),
             ...belowWidgetLines,
           ],
-          transcriptLines: renderBashTranscriptLines(width, theme),
           lastPromptLines: renderLastPromptLines(width),
         })
       },
@@ -3073,17 +3143,7 @@ export default function powerlineFooter(pi: ExtensionAPI) {
       { placement: 'belowEditor' },
     )
 
-    ctx.ui.setWidget(
-      'powerline-bash-transcript',
-      (_tui: any, theme: Theme) => ({
-        dispose() {},
-        invalidate() {},
-        render(width: number): string[] {
-          return renderBashTranscriptLines(width, theme)
-        },
-      }),
-      { placement: 'belowEditor' },
-    )
+    ctx.ui.setWidget('powerline-bash-transcript', undefined)
 
     ctx.ui.setWidget(
       'powerline-last-prompt',

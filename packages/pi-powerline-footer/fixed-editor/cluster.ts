@@ -10,7 +10,6 @@ export interface FixedEditorClusterInput {
   topLines?: string[]
   editorLines: string[]
   secondaryLines?: string[]
-  transcriptLines?: string[]
   lastPromptLines?: string[]
 }
 
@@ -103,7 +102,6 @@ export function renderFixedEditorCluster(
   const topLines = normalizeLines(input.topLines, width)
   const editorSource = normalizeLines(input.editorLines, width)
   const secondaryLines = normalizeLines(input.secondaryLines, width)
-  const transcriptLines = normalizeLines(input.transcriptLines, width)
   const lastPromptLines = normalizeLines(input.lastPromptLines, width)
 
   const editorLines = capEditorLines(editorSource, maxRows)
@@ -119,16 +117,12 @@ export function renderFixedEditorCluster(
   remaining -= lastPrompt.length
 
   const status = takeTail(statusLines, remaining)
-  remaining -= status.length
-
-  const transcript = takeTail(transcriptLines, remaining)
 
   return extractCursor([
     ...status,
     ...top,
     ...editorLines,
     ...secondary,
-    ...transcript,
     ...lastPrompt,
   ])
 }

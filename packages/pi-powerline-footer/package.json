@@ -55,5 +55,8 @@
     "bun-types": "latest",
     "typescript": "^5.9.3"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  }
 }

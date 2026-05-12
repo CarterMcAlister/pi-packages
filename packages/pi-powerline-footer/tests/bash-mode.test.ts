@@ -1,10 +1,12 @@
 // @ts-nocheck
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import {
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
@@ -42,6 +44,14 @@ function ensureEditorModuleLinks(): { cleanup: () => void } {
   return {
     cleanup() {},
   }
+}
+
+function findFishPath(): string | null {
+  const result = spawnSync('sh', ['-lc', 'command -v fish'], {
+    encoding: 'utf8',
+  })
+  const fishPath = result.stdout.trim().split('\n')[0]
+  return fishPath || null
 }
 
 test('project history is stored newest-first and global zsh history parses histfile format', () => {
@@ -534,6 +544,204 @@ test('managed shell session recovers cleanly after interrupt', async () => {
     assert.equal(lastCommand?.command, "printf 'after\\n'")
     assert.equal(lastCommand?.exitCode, 0)
     assert.ok(lastCommand?.output.includes('after'))
+  } finally {
+    session.dispose()
+  }
+})
+
+test('managed fish shell session runs commands without waiting for stdin EOF', async (t) => {
+  const fishPath = findFishPath()
+  if (!fishPath) return t.skip('fish is not installed')
+
+  const cwd = mkdtempSync(join(tmpdir(), 'powerline-fish-shell-'))
+  const childDir = join(cwd, 'child')
+  mkdirSync(childDir, { recursive: true })
+  writeFileSync(join(childDir, 'alpha.txt'), '')
+  const store = new BashTranscriptStore({
+    transcriptMaxLines: 100,
+    transcriptMaxBytes: 64 * 1024,
+  })
+  const session = new ManagedShellSession(
+    fishPath,
+    cwd,
+    store,
+    () => {},
+    () => {},
+  )
+
+  const waitForCommand = async () => {
+    const start = Date.now()
+    while (session.state.running && Date.now() - start < 5000) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    assert.equal(session.state.running, false)
+  }
+
+  try {
+    await session.ensureReady()
+    await session.runCommand(`cd ${childDir}`)
+    await waitForCommand()
+    assert.equal(realpathSync(session.state.cwd), realpathSync(childDir))
+
+    await session.runCommand('pwd')
+    await waitForCommand()
+    await session.runCommand('ls')
+    await waitForCommand()
+    await session.runCommand('if test -t 1; echo tty; else echo pipe; end')
+    await waitForCommand()
+
+    const snapshot = store.getSnapshot()
+    const pwdCommand = snapshot.commands.find(
+      (entry) => entry.command === 'pwd',
+    )
+    const lsCommand = snapshot.commands.find((entry) => entry.command === 'ls')
+    const ttyCommand = snapshot.commands.find((entry) =>
+      entry.command.startsWith('if test -t 1'),
+    )
+    assert.equal(pwdCommand?.exitCode, 0)
+    assert.equal(
+      realpathSync(pwdCommand?.output[0] ?? ''),
+      realpathSync(childDir),
+    )
+    assert.equal(lsCommand?.exitCode, 0)
+    assert.ok(lsCommand?.output.some((line) => line.includes('alpha.txt')))
+    assert.equal(ttyCommand?.exitCode, 0)
+    assert.ok(ttyCommand?.output.includes('tty'))
+  } finally {
+    session.dispose()
+  }
+})
+
+test('managed fish shell session recovers cleanly after interrupt', async (t) => {
+  const fishPath = findFishPath()
+  if (!fishPath) return t.skip('fish is not installed')
+
+  const cwd = mkdtempSync(join(tmpdir(), 'powerline-fish-interrupt-'))
+  const store = new BashTranscriptStore({
+    transcriptMaxLines: 100,
+    transcriptMaxBytes: 64 * 1024,
+  })
+  const session = new ManagedShellSession(
+    fishPath,
+    cwd,
+    store,
+    () => {},
+    () => {},
+  )
+
+  const waitForCommand = async () => {
+    const start = Date.now()
+    while (session.state.running && Date.now() - start < 5000) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    assert.equal(session.state.running, false)
+  }
+
+  try {
+    await session.ensureReady()
+    await session.runCommand('sleep 10')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    session.interrupt()
+    await waitForCommand()
+
+    const interruptedCommand = store.getSnapshot().commands[0]
+    assert.equal(interruptedCommand?.exitCode, 130)
+
+    await session.runCommand('echo after')
+    await waitForCommand()
+
+    const snapshot = store.getSnapshot()
+    const lastCommand = snapshot.commands[snapshot.commands.length - 1]
+    assert.equal(lastCommand?.exitCode, 0)
+    assert.ok(lastCommand?.output.includes('after'))
+  } finally {
+    session.dispose()
+  }
+})
+
+test('managed fish shell session preserves safe ANSI styling in output', async (t) => {
+  const fishPath = findFishPath()
+  if (!fishPath) return t.skip('fish is not installed')
+
+  const cwd = mkdtempSync(join(tmpdir(), 'powerline-fish-color-'))
+  const store = new BashTranscriptStore({
+    transcriptMaxLines: 100,
+    transcriptMaxBytes: 64 * 1024,
+  })
+  const session = new ManagedShellSession(
+    fishPath,
+    cwd,
+    store,
+    () => {},
+    () => {},
+  )
+
+  const waitForCommand = async () => {
+    const start = Date.now()
+    while (session.state.running && Date.now() - start < 5000) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    assert.equal(session.state.running, false)
+  }
+
+  try {
+    await session.ensureReady()
+    await session.runCommand("printf '\\e[31mred\\e[0m\\n'")
+    await waitForCommand()
+
+    const snapshot = store.getSnapshot()
+    const lastCommand = snapshot.commands[snapshot.commands.length - 1]
+    assert.equal(lastCommand?.exitCode, 0)
+    assert.ok(lastCommand?.output.includes('\x1b[31mred\x1b[0m'))
+  } finally {
+    session.dispose()
+  }
+})
+
+test('managed fish shell session preserves persistent shell state between commands', async (t) => {
+  const fishPath = findFishPath()
+  if (!fishPath) return t.skip('fish is not installed')
+
+  const cwd = mkdtempSync(join(tmpdir(), 'powerline-fish-env-'))
+  const store = new BashTranscriptStore({
+    transcriptMaxLines: 100,
+    transcriptMaxBytes: 64 * 1024,
+  })
+  const session = new ManagedShellSession(
+    fishPath,
+    cwd,
+    store,
+    () => {},
+    () => {},
+  )
+
+  const waitForCommand = async () => {
+    const start = Date.now()
+    while (session.state.running && Date.now() - start < 5000) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    assert.equal(session.state.running, false)
+  }
+
+  try {
+    await session.ensureReady()
+    await session.runCommand('set -gx PI_POWERLINE_FISH_TEST exported')
+    await waitForCommand()
+    await session.runCommand('set -g pi_powerline_fish_global global')
+    await waitForCommand()
+    await session.runCommand('function pi_powerline_hi; echo function-ok; end')
+    await waitForCommand()
+
+    await session.runCommand(
+      'echo $PI_POWERLINE_FISH_TEST $pi_powerline_fish_global; pi_powerline_hi',
+    )
+    await waitForCommand()
+
+    const snapshot = store.getSnapshot()
+    const lastCommand = snapshot.commands[snapshot.commands.length - 1]
+    assert.equal(lastCommand?.exitCode, 0)
+    assert.ok(lastCommand?.output.includes('exported global'))
+    assert.ok(lastCommand?.output.includes('function-ok'))
   } finally {
     session.dispose()
   }

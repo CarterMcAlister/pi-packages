@@ -28,6 +28,7 @@ interface TerminalSplitCompositorOptions {
     width: number,
     terminalRows: number,
   ) => FixedEditorClusterRender
+  renderRootAppendLines?: (width: number) => string[]
   getShowHardwareCursor?: () => boolean
   mouseScroll?: boolean
   keyboardScrollShortcuts?: KeyboardScrollShortcuts
@@ -370,6 +371,7 @@ export class TerminalSplitCompositor {
     width: number,
     terminalRows: number,
   ) => FixedEditorClusterRender
+  private readonly renderRootAppendLines: (width: number) => string[]
   private readonly getShowHardwareCursor: () => boolean
   private readonly mouseScroll: boolean
   private readonly keyboardScrollShortcuts: KeyboardScrollShortcuts
@@ -416,6 +418,7 @@ export class TerminalSplitCompositor {
     this.tui = options.tui
     this.terminal = options.terminal
     this.renderCluster = options.renderCluster
+    this.renderRootAppendLines = options.renderRootAppendLines ?? (() => [])
     this.getShowHardwareCursor = options.getShowHardwareCursor ?? (() => false)
     this.mouseScroll = options.mouseScroll !== false
     this.keyboardScrollShortcuts =
@@ -676,7 +679,10 @@ export class TerminalSplitCompositor {
       const renderWidth = Math.max(1, width)
       const cluster = this.getCluster(renderWidth, rawRows)
       const scrollableRows = Math.max(1, rawRows - cluster.lines.length)
-      const lines = this.originalRender(renderWidth)
+      const lines = [
+        ...this.originalRender(renderWidth),
+        ...this.renderRootAppendLines(renderWidth),
+      ]
       this.rootLines = lines
       if (
         this.scrollOffset > 0 &&

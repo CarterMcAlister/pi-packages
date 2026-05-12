@@ -45,6 +45,7 @@
 			"./src/loop.ts",
 			"./src/notify.ts",
 			"./src/whimsical.ts",
+			"./src/mac-key-display.ts",
 			"./src/pi-review-loop/index.ts"
 		]
 	},

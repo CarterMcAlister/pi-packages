@@ -1,8 +1,14 @@
 // biome-ignore-all lint/suspicious/noControlCharactersInRegex: Terminal ANSI/control-sequence stripping intentionally matches control characters.
-import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import {
+  type ChildProcessWithoutNullStreams,
+  execFileSync,
+  spawn,
+} from 'node:child_process'
+import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { arch, platform, tmpdir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
+import * as pty from 'node-pty'
 import type { BashTranscriptStore } from './transcript.ts'
 import type { ShellSessionState } from './types.ts'
 
@@ -17,47 +23,72 @@ function stripAnsi(value: string): string {
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
 }
 
+function keepSgrAnsi(value: string): string {
+  return value
+    .replace(/\x1B\[(?![0-9;]*m)[0-9;?]*[ -/]*[@-~]/g, '')
+    .replace(/\x1B\][^\u0007]*(?:\u0007|\x1b\\)/g, '')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001a\u001c-\u001f\u007f]/g, '')
+}
+
+function isPtyCommandEcho(line: string): boolean {
+  return (
+    (line.includes('powerline-bash-mode-') &&
+      (line.includes('source ') || line.includes('rm -f '))) ||
+    line.includes('set __pi_status') ||
+    line.includes(COMMAND_DONE_SENTINEL)
+  )
+}
+
 function quoteShellArg(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`
 }
 
 function getCloseExitCode(
   code: number | null,
-  signal: NodeJS.Signals | null,
+  signal: NodeJS.Signals | string | number | null,
 ): number {
   if (typeof code === 'number') {
     return code
   }
 
-  if (signal === 'SIGINT') {
+  if (signal === 'SIGINT' || signal === 2) {
     return 130
   }
 
-  if (signal === 'SIGTERM') {
+  if (signal === 'SIGTERM' || signal === 15) {
     return 143
   }
 
-  if (signal === 'SIGKILL') {
+  if (signal === 'SIGKILL' || signal === 9) {
     return 137
   }
 
   return 1
 }
 
-function getShellInitScript(shellName: string): string {
-  if (shellName.includes('fish')) {
-    return `
-function __pi_eval
-  set -l __pi_id $argv[1]
-  set -l __pi_file $argv[2]
-  echo "${COMMAND_START_SENTINEL}:$__pi_id:$PWD"
-  source $__pi_file
-  set -l __pi_status $status
-  rm -f $__pi_file
-  echo "${COMMAND_DONE_SENTINEL}:$__pi_id:$__pi_status:$PWD"
-end
+function getFishInitScript(): string {
+  return `
+stty -echo
+function fish_prompt; end
+function fish_right_prompt; end
 echo "${READY_SENTINEL}:$PWD"
 `
+}
+
+function getFishEvalScript(id: string, filePath: string): string {
+  return `
+echo "${COMMAND_START_SENTINEL}:${id}:$PWD"
+source ${quoteShellArg(filePath)}
+set __pi_status $status
+rm -f ${quoteShellArg(filePath)}
+echo "${COMMAND_DONE_SENTINEL}:${id}:$__pi_status:$PWD"
+set -e __pi_status
+`
+}
+
+function getShellInitScript(shellName: string): string {
+  if (shellName.includes('fish')) {
+    return getFishInitScript()
   }
 
   if (shellName.includes('bash')) {
@@ -89,20 +120,44 @@ print -r -- "${READY_SENTINEL}:$PWD"
 `
 }
 
+function ensureNodePtySpawnHelperExecutable(): void {
+  if (platform() !== 'darwin' && platform() !== 'linux') return
+
+  try {
+    const require = createRequire(import.meta.url)
+    const nodePtyEntry = require.resolve('node-pty')
+    const packageDir = dirname(dirname(nodePtyEntry))
+    const helperPath = join(
+      packageDir,
+      'prebuilds',
+      `${platform()}-${arch()}`,
+      'spawn-helper',
+    )
+    chmodSync(helperPath, 0o755)
+  } catch {
+    return
+  }
+}
+
 export class ManagedShellSession {
   private readonly shellPath: string
   private readonly transcript: BashTranscriptStore
   private readonly onStateChange: () => void
   private readonly onCommandSuccess: (command: string, cwd: string) => void
   private process: ChildProcessWithoutNullStreams | null = null
+  private ptyProcess: pty.IPty | null = null
   private readonly tempDir = mkdtempSync(join(tmpdir(), 'powerline-bash-mode-'))
   private buffer = ''
+  private outputBuffer = ''
   private commandCounter = 0
   private currentCommandId: string | null = null
+  private commandOutputActive = false
   private readyPromise: Promise<void> | null = null
   private readyResolve: (() => void) | null = null
   private readyReject: ((error: Error) => void) | null = null
+  private interruptFallbackTimer: ReturnType<typeof setTimeout> | null = null
   private disposed = false
+  private readonly usePty: boolean
   readonly state: ShellSessionState
 
   constructor(
@@ -117,6 +172,7 @@ export class ManagedShellSession {
     this.onStateChange = onStateChange
     this.onCommandSuccess = onCommandSuccess
     const shellName = basename(shellPath).toLowerCase()
+    this.usePty = shellName.includes('fish')
     this.state = {
       ready: false,
       running: false,
@@ -136,6 +192,134 @@ export class ManagedShellSession {
       this.readyReject = reject
     })
 
+    if (this.usePty) {
+      this.spawnPtyShell()
+    } else {
+      this.spawnPipeShell()
+    }
+
+    this.sendRaw(`${getShellInitScript(this.state.shellName)}\n`)
+    return this.readyPromise
+  }
+
+  async runCommand(command: string): Promise<void> {
+    await this.ensureReady()
+    if (!this.process && !this.ptyProcess) {
+      throw new Error('Shell process not available')
+    }
+    if (this.state.running) {
+      throw new Error('Shell command already running')
+    }
+
+    const id = `cmd-${++this.commandCounter}`
+    const extension = this.state.shellName.includes('fish') ? 'fish' : 'sh'
+    const filePath = join(this.tempDir, `${id}.${extension}`)
+    writeFileSync(
+      filePath,
+      command.endsWith('\n') ? command : `${command}\n`,
+      'utf8',
+    )
+
+    this.currentCommandId = id
+    this.commandOutputActive = false
+    this.state.running = true
+    this.transcript.startCommand(id, command, this.state.cwd)
+    this.onStateChange()
+    if (this.usePty && this.state.shellName.includes('fish')) {
+      this.sendRaw(getFishEvalScript(id, filePath))
+      return
+    }
+
+    this.sendRaw(`__pi_eval ${quoteShellArg(id)} ${quoteShellArg(filePath)}\n`)
+  }
+
+  interrupt(): void {
+    if (!this.state.running) return
+    if (this.ptyProcess) {
+      const interruptedCommandId = this.currentCommandId
+      this.ptyProcess.write('\x03')
+      this.interruptPtyChildren()
+      this.interruptFallbackTimer = setTimeout(() => {
+        if (
+          interruptedCommandId &&
+          this.currentCommandId === interruptedCommandId &&
+          this.state.running
+        ) {
+          this.finishCurrentCommand(interruptedCommandId, 130)
+        }
+      }, 250)
+      return
+    }
+
+    if (!this.process) return
+    const pid = this.process.pid
+    try {
+      if (pid === undefined) throw new Error('Shell process pid unavailable')
+      process.kill(-pid, 'SIGINT')
+    } catch {
+      this.process.kill('SIGINT')
+    }
+  }
+
+  dispose(): void {
+    this.disposed = true
+    this.readyPromise = null
+    this.readyResolve = null
+    this.readyReject = null
+    if (this.interruptFallbackTimer) {
+      clearTimeout(this.interruptFallbackTimer)
+      this.interruptFallbackTimer = null
+    }
+    if (this.ptyProcess) {
+      this.ptyProcess.kill('SIGKILL')
+      this.ptyProcess = null
+    }
+    if (!this.process) return
+    const pid = this.process.pid
+    try {
+      if (pid === undefined) throw new Error('Shell process pid unavailable')
+      process.kill(-pid, 'SIGKILL')
+    } catch {
+      this.process.kill('SIGKILL')
+    }
+    this.process = null
+  }
+
+  private spawnPtyShell(): void {
+    ensureNodePtySpawnHelperExecutable()
+    try {
+      this.ptyProcess = pty.spawn(this.shellPath, [], {
+        cwd: this.state.cwd,
+        env: {
+          ...process.env,
+          DISABLE_AUTO_UPDATE: 'true',
+          DISABLE_UPDATE_PROMPT: 'true',
+          fish_greeting: '',
+          TERM: 'dumb',
+          COLORTERM: process.env.COLORTERM || 'truecolor',
+          CLICOLOR_FORCE: process.env.CLICOLOR_FORCE || '1',
+          FORCE_COLOR: process.env.FORCE_COLOR || '1',
+        },
+        cols: 120,
+        rows: 30,
+        name: 'dumb',
+      })
+    } catch (error) {
+      this.readyReject?.(
+        error instanceof Error ? error : new Error(String(error)),
+      )
+      this.resetProcessState()
+      return
+    }
+
+    this.ptyProcess.onData((chunk) => this.handleChunk(String(chunk)))
+    this.ptyProcess.onExit(({ exitCode, signal }) => {
+      const code = getCloseExitCode(exitCode, signal)
+      this.handleShellClose(code)
+    })
+  }
+
+  private spawnPipeShell(): void {
     this.process = spawn(this.shellPath, [], {
       cwd: this.state.cwd,
       env: {
@@ -159,102 +343,92 @@ export class ManagedShellSession {
       }
     })
     this.process.on('close', (code, signal) => {
-      const exitCode = getCloseExitCode(code, signal)
-      if (!this.disposed && !this.state.ready) {
-        this.readyReject?.(
-          new Error(`Shell failed to start (exit ${exitCode})`),
-        )
-      }
-
-      if (this.currentCommandId) {
-        this.transcript.finishCommand(this.currentCommandId, exitCode)
-        this.state.lastExitCode = exitCode
-        this.currentCommandId = null
-      }
-
-      this.process = null
-      this.buffer = ''
-      this.readyPromise = null
-      this.readyResolve = null
-      this.readyReject = null
-      this.state.ready = false
-      this.state.running = false
-      this.onStateChange()
+      this.handleShellClose(getCloseExitCode(code, signal))
     })
-
-    this.sendRaw(`${getShellInitScript(this.state.shellName)}\n`)
-    return this.readyPromise
   }
 
-  async runCommand(command: string): Promise<void> {
-    await this.ensureReady()
-    if (!this.process) {
-      throw new Error('Shell process not available')
-    }
-    if (this.state.running) {
-      throw new Error('Shell command already running')
+  private handleShellClose(exitCode: number): void {
+    if (!this.disposed && !this.state.ready) {
+      this.readyReject?.(new Error(`Shell failed to start (exit ${exitCode})`))
     }
 
-    const id = `cmd-${++this.commandCounter}`
-    const extension = this.state.shellName.includes('fish') ? 'fish' : 'sh'
-    const filePath = join(this.tempDir, `${id}.${extension}`)
-    writeFileSync(
-      filePath,
-      command.endsWith('\n') ? command : `${command}\n`,
-      'utf8',
-    )
+    if (this.currentCommandId) {
+      this.transcript.finishCommand(this.currentCommandId, exitCode)
+      this.state.lastExitCode = exitCode
+      this.currentCommandId = null
+      this.commandOutputActive = false
+    }
 
-    this.currentCommandId = id
-    this.state.running = true
-    this.transcript.startCommand(id, command, this.state.cwd)
+    this.resetProcessState()
     this.onStateChange()
-    this.sendRaw(`__pi_eval ${quoteShellArg(id)} ${quoteShellArg(filePath)}\n`)
   }
 
-  interrupt(): void {
-    if (!this.process || !this.state.running) return
-    const pid = this.process.pid
-    try {
-      if (pid === undefined) throw new Error('Shell process pid unavailable')
-      process.kill(-pid, 'SIGINT')
-    } catch {
-      // The shell may not own a process group anymore.
-      this.process.kill('SIGINT')
+  private resetProcessState(): void {
+    this.process = null
+    this.ptyProcess = null
+    this.buffer = ''
+    this.outputBuffer = ''
+    this.commandOutputActive = false
+    if (this.interruptFallbackTimer) {
+      clearTimeout(this.interruptFallbackTimer)
+      this.interruptFallbackTimer = null
     }
-  }
-
-  dispose(): void {
-    this.disposed = true
     this.readyPromise = null
     this.readyResolve = null
     this.readyReject = null
-    if (!this.process) return
-    const pid = this.process.pid
-    try {
-      if (pid === undefined) throw new Error('Shell process pid unavailable')
-      process.kill(-pid, 'SIGKILL')
-    } catch {
-      // The shell may not own a process group anymore.
-      this.process.kill('SIGKILL')
-    }
-    this.process = null
+    this.state.ready = false
+    this.state.running = false
   }
 
   private sendRaw(text: string): void {
+    if (this.ptyProcess) {
+      this.ptyProcess.write(text.replace(/\n/g, '\r'))
+      return
+    }
     if (!this.process) return
     this.process.stdin.write(text)
   }
 
+  private interruptPtyChildren(): void {
+    if (!this.ptyProcess) return
+    for (const pid of this.collectChildPids(this.ptyProcess.pid)) {
+      try {
+        process.kill(pid, 'SIGINT')
+      } catch {}
+    }
+  }
+
+  private collectChildPids(parentPid: number): number[] {
+    let childPids: number[] = []
+    try {
+      childPids = execFileSync('pgrep', ['-P', String(parentPid)], {
+        encoding: 'utf8',
+      })
+        .split(/\s+/)
+        .map((pid) => Number.parseInt(pid, 10))
+        .filter((pid) => Number.isFinite(pid))
+    } catch {
+      return []
+    }
+
+    return childPids.flatMap((pid) => [pid, ...this.collectChildPids(pid)])
+  }
+
   private handleChunk(chunk: string): void {
     const sanitized = stripAnsi(chunk).replace(/\r/g, '')
-    if (!sanitized) return
+    const styled = keepSgrAnsi(chunk).replace(/\r/g, '')
+    if (!sanitized && !styled) return
 
     this.buffer += sanitized
+    this.outputBuffer += styled
     const parts = this.buffer.split('\n')
+    const outputParts = this.outputBuffer.split('\n')
     this.buffer = parts.pop() ?? ''
+    this.outputBuffer = outputParts.pop() ?? ''
 
-    for (const rawLine of parts) {
-      const line = rawLine.trimEnd()
+    for (let index = 0; index < parts.length; index++) {
+      const line = (parts[index] ?? '').trimEnd()
+      const outputLine = (outputParts[index] ?? '').trimEnd()
       if (!this.state.ready) {
         if (line.startsWith(`${READY_SENTINEL}:`)) {
           this.state.ready = true
@@ -272,32 +446,58 @@ export class ManagedShellSession {
         const [, id, cwd] = line.split(':')
         if (cwd) this.state.cwd = cwd
         this.currentCommandId = id ?? this.currentCommandId
+        this.commandOutputActive = true
         this.onStateChange()
+        continue
+      }
+
+      if (line === '^C' && this.currentCommandId && this.commandOutputActive) {
+        this.finishCurrentCommand(this.currentCommandId, 130)
         continue
       }
 
       if (line.startsWith(`${COMMAND_DONE_SENTINEL}:`)) {
         const [, id, exitCodeText, cwd] = line.split(':')
         const exitCode = Number.parseInt(exitCodeText ?? '1', 10)
-        this.state.running = false
-        this.state.lastExitCode = Number.isFinite(exitCode) ? exitCode : 1
-        if (cwd) this.state.cwd = cwd
-        if (id) {
-          this.transcript.finishCommand(id, this.state.lastExitCode)
-          const snapshot = this.transcript.getSnapshot()
-          const command = snapshot.commands.find((entry) => entry.id === id)
-          if (command && this.state.lastExitCode === 0) {
-            this.onCommandSuccess(command.command, this.state.cwd)
-          }
-        }
-        this.currentCommandId = null
-        this.onStateChange()
+        this.finishCurrentCommand(
+          id ?? this.currentCommandId,
+          Number.isFinite(exitCode) ? exitCode : 1,
+          cwd,
+        )
         continue
       }
 
-      if (!this.currentCommandId) continue
-      this.transcript.appendOutput(this.currentCommandId, line)
+      if (!this.currentCommandId || !this.commandOutputActive) continue
+      if (line.trim() === '') continue
+      if (line.startsWith('__pi_eval ')) continue
+      if (isPtyCommandEcho(line)) continue
+      this.transcript.appendOutput(this.currentCommandId, outputLine || line)
       this.onStateChange()
     }
+  }
+
+  private finishCurrentCommand(
+    id: string | null,
+    exitCode: number,
+    cwd?: string,
+  ): void {
+    if (this.interruptFallbackTimer) {
+      clearTimeout(this.interruptFallbackTimer)
+      this.interruptFallbackTimer = null
+    }
+    this.state.running = false
+    this.state.lastExitCode = exitCode
+    if (cwd) this.state.cwd = cwd
+    if (id) {
+      this.transcript.finishCommand(id, exitCode)
+      const snapshot = this.transcript.getSnapshot()
+      const command = snapshot.commands.find((entry) => entry.id === id)
+      if (command && exitCode === 0) {
+        this.onCommandSuccess(command.command, this.state.cwd)
+      }
+    }
+    this.currentCommandId = null
+    this.commandOutputActive = false
+    this.onStateChange()
   }
 }

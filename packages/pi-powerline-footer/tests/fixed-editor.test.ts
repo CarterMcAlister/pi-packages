@@ -271,6 +271,35 @@ test('terminal split reserves rows, hides root renderables, repaints, and cleans
   assert.ok(!terminal.writes.at(-1)?.includes('\x1b[>4;0m'))
 })
 
+test('terminal split appends bash transcript lines to the scrollable root', () => {
+  const terminal = new FakeTerminal()
+  terminal.setRows(6)
+  const tui = {
+    terminal,
+    render() {
+      return ['chat-a', 'chat-b']
+    },
+  }
+
+  const compositor = new TerminalSplitCompositor({
+    tui,
+    terminal,
+    renderRootAppendLines: () => ['> ls (ok)', '  alpha.txt'],
+    renderCluster: () => ({ lines: ['powerline', 'editor'], cursor: null }),
+  })
+
+  compositor.install()
+
+  assert.deepEqual(tui.render(40), [
+    'chat-a',
+    'chat-b',
+    '> ls (ok)',
+    '  alpha.txt',
+  ])
+
+  compositor.dispose()
+})
+
 test('terminal split re-enables Kitty keyboard protocol in alternate screen', () => {
   const terminal = new FakeTerminal()
   Object.defineProperty(terminal, 'kittyProtocolActive', { value: true })

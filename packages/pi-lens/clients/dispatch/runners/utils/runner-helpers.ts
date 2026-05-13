@@ -364,47 +364,60 @@ export function createConfigFinder(
 // SHARED AST-GREP AVAILABILITY
 // =============================================================================
 
-// Shared sg availability cache across all slop runners
+// Shared ast-grep availability cache across all slop runners
 let sgAvailable: boolean | null = null;
 let sgCmd: string | null = null;
 let sgCmdArgs: string[] = [];
 
+function isAstGrepVersionOutput(output: string): boolean {
+	return /\bast[- ]grep\b/i.test(output);
+}
+
+function probeAstGrepCommand(cmd: string, argsPrefix: string[] = []): boolean {
+	const check = safeSpawn(cmd, [...argsPrefix, "--version"], { timeout: 5000 });
+	return (
+		!check.error &&
+		check.status === 0 &&
+		isAstGrepVersionOutput(`${check.stdout}\n${check.stderr}`)
+	);
+}
+
 /**
- * Check if ast-grep CLI (sg) is available.
- * Prefers local node_modules/.bin/sg, then global sg, then npx --no sg (cache-only).
+ * Check if ast-grep CLI is available.
+ * Prefers the canonical ast-grep binary, and only accepts sg if its version
+ * output proves it is ast-grep (Linux /usr/bin/sg is group-switch).
  */
 export function isSgAvailable(): boolean {
 	if (sgAvailable !== null) return sgAvailable;
 
-	// 1. Local node_modules/.bin/sg — walk up from this file's dir, then cwd,
-	//    then the managed tools dir. Works regardless of install depth or layout.
 	const isWin = process.platform === "win32";
-	// On Windows with Git Bash, prefer the bare 'sg' shim (bash-compatible) over
-	// .cmd/.ps1 which bash cannot execute. In plain cmd/PowerShell, .cmd is fine.
 	const hasBash = !!(
 		process.env.MSYSTEM ||
 		process.env.GIT_SHELL ||
 		process.env.BASH
 	);
-	let sgCandidates = ["sg"];
-	if (isWin) {
-		sgCandidates = hasBash
-			? ["sg", "sg.exe", "sg.cmd"]
-			: ["sg.cmd", "sg.exe", "sg"];
-	}
+	const extensions = isWin
+		? hasBash
+			? ["", ".exe", ".cmd"]
+			: [".cmd", ".exe", ""]
+		: [""];
+	const binaryCandidates = ["ast-grep", "sg"].flatMap((base) =>
+		extensions.map((ext) => `${base}${ext}`),
+	);
 
+	// 1. Local node_modules/.bin — walk up from this file's dir, then cwd,
+	//    then the managed tools dir. Works regardless of install depth or layout.
 	const binRoots = [
 		...findNodeBinRoots(_thisDir),
 		...findNodeBinRoots(process.cwd()),
 		_managedToolsDir,
 	];
 	for (const root of binRoots) {
-		for (const candidate of sgCandidates) {
-			const localSg = path.join(root, "node_modules", ".bin", candidate);
-			if (!fs.existsSync(localSg)) continue;
-			const check = safeSpawn(localSg, ["--version"], { timeout: 5000 });
-			if (!check.error && check.status === 0) {
-				sgCmd = localSg;
+		for (const candidate of binaryCandidates) {
+			const localBin = path.join(root, "node_modules", ".bin", candidate);
+			if (!fs.existsSync(localBin)) continue;
+			if (probeAstGrepCommand(localBin)) {
+				sgCmd = localBin;
 				sgCmdArgs = [];
 				sgAvailable = true;
 				return true;
@@ -412,29 +425,34 @@ export function isSgAvailable(): boolean {
 		}
 	}
 
-	// 2. Global sg
-	const globalCheck = safeSpawn("sg", ["--version"], { timeout: 5000 });
-	if (!globalCheck.error && globalCheck.status === 0) {
-		sgCmd = "sg";
-		sgCmdArgs = [];
+	// 2. Global PATH — prefer ast-grep; reject util-linux /usr/bin/sg.
+	for (const cmd of ["ast-grep", "sg"]) {
+		if (probeAstGrepCommand(cmd)) {
+			sgCmd = cmd;
+			sgCmdArgs = [];
+			sgAvailable = true;
+			return true;
+		}
+	}
+
+	// 3. npx --no (cache-only, no silent download). The -- separator ensures
+	// --version is passed to ast-grep instead of being consumed by npx.
+	if (probeAstGrepCommand("npx", ["--no", "--", "ast-grep"])) {
+		sgCmd = "npx";
+		sgCmdArgs = ["--no", "--", "ast-grep"];
 		sgAvailable = true;
 		return true;
 	}
 
-	// 3. npx --no (cache-only, no silent download)
-	const npxCheck = safeSpawn("npx", ["--no", "sg", "--version"], {
-		timeout: 5000,
-	});
-	sgAvailable = !npxCheck.error && npxCheck.status === 0;
-	if (sgAvailable) {
-		sgCmd = "npx";
-		sgCmdArgs = ["--no"];
-	}
-	return sgAvailable;
+	sgAvailable = false;
+	return false;
 }
 
 export function getSgCommand(): { cmd: string; args: string[] } {
-	return { cmd: sgCmd ?? "npx", args: sgCmdArgs.length ? sgCmdArgs : ["--no"] };
+	return {
+		cmd: sgCmd ?? "npx",
+		args: sgCmdArgs.length ? sgCmdArgs : ["--no", "--", "ast-grep"],
+	};
 }
 
 // =============================================================================

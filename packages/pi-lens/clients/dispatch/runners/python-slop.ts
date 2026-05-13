@@ -49,7 +49,6 @@ const pythonSlopRunner: RunnerDefinition = {
 		const { cmd: sgCmd, args: sgPre } = getSgCommand();
 		const args = [
 			...sgPre,
-			"sg",
 			"scan",
 			"--config",
 			configPath,

@@ -10,12 +10,14 @@ ${CODEX_HOME:-~/.codex}/generated_images/<pi-session>/<image-id>.<format>
 
 ## Install
 
-From this monorepo, include the package extension in Pi settings or install it as a Pi package once published.
+```bash
+pi install npm:@carter-mcalister/pi-codex-image-gen
+```
 
-```json
-{
-  "packages": ["npm:@carter-mcalister/pi-codex-image-gen"]
-}
+For local development from the package directory:
+
+```bash
+pi install .
 ```
 
 ## Auth

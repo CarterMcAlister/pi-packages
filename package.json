@@ -68,6 +68,7 @@
     "@types/node": "22.0.0",
     "bun-types": "latest",
     "lefthook": "2.1.6",
+    "typebox": "1.0.81",
     "typescript": "5.9.3"
   },
   "license": "MIT"

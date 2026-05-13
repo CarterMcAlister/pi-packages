@@ -508,6 +508,15 @@ const FORMATTER_POLICY_BY_EXTENSION = new Map<string, FormatterPolicy>([
 		},
 	],
 	[
+		".fish",
+		{
+			formatterNames: ["fish-indent"],
+			defaultFormatter: "fish-indent",
+			defaultWhenUnconfigured: true,
+			gate: "smart-default",
+		},
+	],
+	[
 		".toml",
 		{
 			formatterNames: ["taplo"],
@@ -727,6 +736,7 @@ export type LintRunnerName =
 	| "taplo"
 	| "rust-clippy"
 	| "shellcheck"
+	| "fish-indent"
 	| "tflint"
 	| "credo"
 	| "cpp-check"
@@ -1251,6 +1261,16 @@ export function getLinterPolicyForFile(
 			runnerNames: ["shellcheck"],
 			preferredRunners: ["shellcheck"],
 			defaultRunner: "shellcheck",
+			defaultWhenUnconfigured: true,
+			gate: "smart-default",
+		};
+	}
+
+	if (ext === ".fish") {
+		return {
+			runnerNames: ["fish-indent"],
+			preferredRunners: ["fish-indent"],
+			defaultRunner: "fish-indent",
 			defaultWhenUnconfigured: true,
 			gate: "smart-default",
 		};

@@ -18,6 +18,7 @@ export type FileKind =
 	| "dart" // Dart
 	| "docker" // Dockerfile
 	| "elixir" // Elixir
+	| "fish" // Fish shell
 	| "fsharp" // F#
 	| "gleam" // Gleam
 	| "go" // Go
@@ -112,6 +113,9 @@ export const KIND_EXTENSIONS: Record<FileKind, readonly string[]> = {
 		".ex",
 		".exs",
 	],
+	fish: [
+		".fish",
+	],
 	fsharp: [
 		".fs",
 		".fsi",
@@ -195,7 +199,6 @@ export const KIND_EXTENSIONS: Record<FileKind, readonly string[]> = {
 	],
 	shell: [
 		".bash",
-		".fish",
 		".sh",
 		".zsh",
 	],
@@ -311,6 +314,7 @@ export function isCodeKind(kind: FileKind): boolean {
 		"go",
 		"rust",
 		"cxx",
+		"fish",
 		"shell",
 		"ruby",
 		"html",
@@ -368,6 +372,7 @@ export function getFileKindLabel(kind: FileKind): string {
 		powershell: "PowerShell",
 		prisma: "Prisma",
 		csharp: "C#",
+		fish: "Fish shell",
 		fsharp: "F#",
 		java: "Java",
 		kotlin: "Kotlin",
@@ -441,6 +446,7 @@ export function getLanguageId(kind: FileKind): string {
 		powershell: "powershell",
 		prisma: "prisma",
 		csharp: "csharp",
+		fish: "fish",
 		fsharp: "fsharp",
 		java: "java",
 		kotlin: "kotlin",

@@ -1,8 +1,10 @@
-# @victor-software-house/pi-multicodex
+# @carter-mcalister/pi-multicodex
 
 ![MultiCodex main panel](./assets/multicodex-main.png)
 
 MultiCodex is a [pi](https://github.com/badlogic/pi-mono) extension that manages multiple ChatGPT Codex accounts and rotates between them automatically when you hit quota limits.
+
+This workspace package is vendored from [`victor-software-house/pi-multicodex`](https://github.com/victor-software-house/pi-multicodex). Credit to Victor Software House for the source extension and ongoing package design.
 
 You add your Codex accounts once. After that, MultiCodex transparently picks the best available account for every request. When one account runs dry mid-session, it switches to another and retries — no manual intervention needed.
 
@@ -11,7 +13,7 @@ You add your Codex accounts once. After that, MultiCodex transparently picks the
 Install from npm:
 
 ```bash
-pi install npm:@victor-software-house/pi-multicodex
+pi install npm:@carter-mcalister/pi-multicodex
 ```
 
 Restart pi. That is all you need — MultiCodex takes over the normal `openai-codex` provider path and auto-imports any Codex auth you have already set up in pi.
@@ -35,20 +37,20 @@ When a request hits a quota or rate limit **before** any output is streamed, Mul
 
 Everything lives under one command: `/multicodex`.
 
-| Command | What it does |
-|---|---|
-| `/multicodex` | Open the main interactive menu |
-| `/multicodex accounts [identifier]` | Inspect account health, select an account, add one, or directly activate/login by identifier |
-| `/multicodex use [identifier]` | Alias for `/multicodex accounts [identifier]` |
-| `/multicodex show` | Alias for the account-management view; in non-interactive mode it prints per-account health lines |
-| `/multicodex refresh [identifier\|all]` | Refresh token validity and usage data for one account or all accounts |
-| `/multicodex reauth [identifier]` | Re-authenticate one account explicitly |
-| `/multicodex footer` | Configure the usage footer display |
-| `/multicodex rotation` | Show the current rotation policy |
-| `/multicodex verify` | Check storage, settings, auth import, and reauth health |
-| `/multicodex path` | Print storage and settings file locations |
-| `/multicodex reset [manual\|quota\|all]` | Clear manual override, quota cooldowns, or both |
-| `/multicodex help` | Print a compact usage line |
+| Command                                  | What it does                                                                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `/multicodex`                            | Open the main interactive menu                                                                    |
+| `/multicodex accounts [identifier]`      | Inspect account health, select an account, add one, or directly activate/login by identifier      |
+| `/multicodex use [identifier]`           | Alias for `/multicodex accounts [identifier]`                                                     |
+| `/multicodex show`                       | Alias for the account-management view; in non-interactive mode it prints per-account health lines |
+| `/multicodex refresh [identifier\|all]`  | Refresh token validity and usage data for one account or all accounts                             |
+| `/multicodex reauth [identifier]`        | Re-authenticate one account explicitly                                                            |
+| `/multicodex footer`                     | Configure the usage footer display                                                                |
+| `/multicodex rotation`                   | Show the current rotation policy                                                                  |
+| `/multicodex verify`                     | Check storage, settings, auth import, and reauth health                                           |
+| `/multicodex path`                       | Print storage and settings file locations                                                         |
+| `/multicodex reset [manual\|quota\|all]` | Clear manual override, quota cooldowns, or both                                                   |
+| `/multicodex help`                       | Print a compact usage line                                                                        |
 
 All subcommands support dynamic autocomplete. Account-focused subcommands autocomplete from the managed account list.
 
@@ -110,10 +112,10 @@ pi -e ./index.ts
 
 MultiCodex stores all data locally under `~/.pi/agent/`:
 
-| File | Contents |
-|---|---|
-| `codex-accounts.json` | Managed account credentials and state |
-| `settings.json` (key `pi-multicodex`) | Footer display preferences |
+| File                                  | Contents                              |
+| ------------------------------------- | ------------------------------------- |
+| `codex-accounts.json`                 | Managed account credentials and state |
+| `settings.json` (key `pi-multicodex`) | Footer display preferences            |
 
 No data is sent anywhere except to the Codex API endpoints for auth refresh and usage queries.
 

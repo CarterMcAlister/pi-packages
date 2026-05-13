@@ -14,6 +14,7 @@ export const SUPPORTED_FILE_KINDS: readonly FileKind[] = [
 	"rust",
 	"cxx",
 	"cmake",
+	"fish",
 	"shell",
 	"json",
 	"markdown",

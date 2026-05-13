@@ -11,7 +11,7 @@ mise install
 bun install
 bun test
 bun run check
-pi install /absolute/path/to/pi-packages/packages/pi-skillpacks
+pi install .
 ```
 
 ### Install as a Pi package

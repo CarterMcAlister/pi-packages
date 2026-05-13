@@ -46,7 +46,10 @@ describe("tree-sitter security gap rules", () => {
 	it("does not match safe python literal URL request", async () => {
 		const client = new TreeSitterClient();
 		const query = await getQuery("python-ssrf");
-		const filePath = writeTempFile("py", `import requests\nrequests.get("https://example.com")\n`);
+		const filePath = writeTempFile(
+			"py",
+			`import requests\nrequests.get("https://example.com")\n`,
+		);
 		const matches = await client.runQueryOnFile(query, filePath, "python");
 		expect(matches.length).toBe(0);
 	});
@@ -89,10 +92,43 @@ describe("tree-sitter security gap rules", () => {
 		expect(matches.length).toBe(0);
 	});
 
+	it("does not match SQLAlchemy session.execute(stmt)", async () => {
+		const client = new TreeSitterClient();
+		const query = await getQuery("python-sql-injection");
+		const filePath = writeTempFile(
+			"py",
+			`from sqlalchemy import select\nstmt = select(MyModel).where(MyModel.id == 42)\nresult = await session.execute(stmt)\n`,
+		);
+		const matches = await client.runQueryOnFile(query, filePath, "python");
+		expect(matches.length).toBe(0);
+	});
+
+	it("does not match SQLAlchemy expression-builder execute calls", async () => {
+		const client = new TreeSitterClient();
+		const query = await getQuery("python-sql-injection");
+		const filePath = writeTempFile(
+			"py",
+			`result = conn.execute(select(MyModel).where(MyModel.id == user_id))\n`,
+		);
+		const matches = await client.runQueryOnFile(query, filePath, "python");
+		expect(matches.length).toBe(0);
+	});
+
+	it("matches raw cursor.execute(sql_identifier)", async () => {
+		const client = new TreeSitterClient();
+		const query = await getQuery("python-sql-injection");
+		const filePath = writeTempFile("py", `cursor.execute(sql)\n`);
+		const matches = await client.runQueryOnFile(query, filePath, "python");
+		expect(matches.length).toBeGreaterThan(0);
+	});
+
 	it("matches python insecure deserialization sink", async () => {
 		const client = new TreeSitterClient();
 		const query = await getQuery("python-insecure-deserialization");
-		const filePath = writeTempFile("py", `import pickle\npickle.loads(payload)\n`);
+		const filePath = writeTempFile(
+			"py",
+			`import pickle\npickle.loads(payload)\n`,
+		);
 		const matches = await client.runQueryOnFile(query, filePath, "python");
 		expect(matches.length).toBeGreaterThan(0);
 	});
@@ -122,7 +158,7 @@ describe("tree-sitter security gap rules", () => {
 		const query = await getQuery("go-sql-injection");
 		const filePath = writeTempFile(
 			"go",
-			`package main\nimport \"fmt\"\nfunc run(db DB, userID string){ db.Query(fmt.Sprintf(\"SELECT * FROM users WHERE id=%s\", userID)) }\n`,
+			`package main\nimport "fmt"\nfunc run(db DB, userID string){ db.Query(fmt.Sprintf("SELECT * FROM users WHERE id=%s", userID)) }\n`,
 		);
 		const matches = await client.runQueryOnFile(query, filePath, "go");
 		expect(matches.length).toBeGreaterThan(0);
@@ -150,7 +186,10 @@ describe("tree-sitter security gap rules", () => {
 	it("matches go path traversal sink", async () => {
 		const client = new TreeSitterClient();
 		const query = await getQuery("go-path-traversal");
-		const filePath = writeTempFile("go", `package main\nimport \"os\"\nfunc run(base string, userPath string){ os.ReadFile(base + userPath) }\n`);
+		const filePath = writeTempFile(
+			"go",
+			`package main\nimport "os"\nfunc run(base string, userPath string){ os.ReadFile(base + userPath) }\n`,
+		);
 		const matches = await client.runQueryOnFile(query, filePath, "go");
 		expect(matches.length).toBeGreaterThan(0);
 	});
@@ -160,7 +199,7 @@ describe("tree-sitter security gap rules", () => {
 		const query = await getQuery("go-insecure-random");
 		const filePath = writeTempFile(
 			"go",
-			`package main\nimport \"math/rand\"\nfunc run(){ _ = rand.Intn(10) }\n`,
+			`package main\nimport "math/rand"\nfunc run(){ _ = rand.Intn(10) }\n`,
 		);
 		const matches = await client.runQueryOnFile(query, filePath, "go");
 		expect(matches.length).toBeGreaterThan(0);
@@ -171,7 +210,7 @@ describe("tree-sitter security gap rules", () => {
 		const query = await getQuery("ts-weak-hash");
 		const filePath = writeTempFile(
 			"ts",
-			`import crypto from \"crypto\";\ncrypto.createHash("md5").update(data);\n`,
+			`import crypto from "crypto";\ncrypto.createHash("md5").update(data);\n`,
 		);
 		const matches = await client.runQueryOnFile(query, filePath, "typescript");
 		expect(matches.length).toBeGreaterThan(0);

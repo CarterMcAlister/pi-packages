@@ -154,9 +154,8 @@ describe("resolveCommand — .venv", () => {
 		expect(cmd).toContain(filePath);
 	});
 
-	it.skipIf(process.env.CI === "true")(
-		"ruff: falls back to discovered global install when no venv binary",
-		async () => {
+	it("ruff: falls back to discovered global install when no venv binary", async () => {
+		await withPathShim("ruff", async () => {
 			const cmd = await ruffFormatter.resolveCommand!(
 				fileIn(tmpDir, "main.py"),
 				tmpDir,
@@ -164,8 +163,8 @@ describe("resolveCommand — .venv", () => {
 			expect(cmd).not.toBeNull();
 			expect(String(cmd![0]).toLowerCase()).toContain("ruff");
 			expect(cmd).toContain("format");
-		},
-	);
+		});
+	});
 
 	it("black: returns venv binary when present", async () => {
 		const binPath = venvBin(tmpDir, "black");

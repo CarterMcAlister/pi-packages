@@ -125,7 +125,38 @@ has_fix: false
 		await loader.loadQueries(root);
 		const query = loader.getQueryById("predicate-preserve");
 		expect(query).toBeTruthy();
-		expect(query?.query).toContain("#eq? @OBJ \"Math\"");
-		expect(query?.query).toContain("#eq? @FN \"random\"");
+		expect(query?.query).toContain('#eq? @OBJ "Math"');
+		expect(query?.query).toContain('#eq? @FN "random"');
+	});
+
+	it("loads disabled-directory rules for tests but excludes them from production language queries", async () => {
+		const root = makeTempRulesRoot();
+		writeRule(
+			root,
+			"rules/tree-sitter-queries/python-disabled/disabled-example.yml",
+			`id: disabled-example
+name: Disabled Example
+severity: warning
+category: correctness
+language: python
+message: test
+query: |
+  (identifier) @X
+metavars:
+  - X
+defect_class: correctness
+inline_tier: warning
+has_fix: false
+`,
+		);
+
+		const loader = new TreeSitterQueryLoader();
+		await loader.loadQueries(root);
+		expect(loader.getAllQueries().map((q) => q.id)).toContain(
+			"disabled-example",
+		);
+		expect(
+			loader.getQueriesForLanguage("python").map((q) => q.id),
+		).not.toContain("disabled-example");
 	});
 });

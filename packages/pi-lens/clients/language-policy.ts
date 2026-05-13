@@ -36,6 +36,7 @@ export const LANGUAGE_POLICY: Record<FileKind, LanguagePolicy> = {
 	rust: { lspCapable: true },
 	cxx: { lspCapable: true },
 	cmake: { lspCapable: true },
+	fish: { lspCapable: true },
 	shell: { lspCapable: true, startup: { defaults: ["shellcheck"] } },
 	json: { lspCapable: true },
 	markdown: { lspCapable: false },
@@ -106,6 +107,11 @@ const PRIMARY_DISPATCH_GROUPS: Partial<Record<FileKind, RunnerGroup>> = {
 		filterKinds: ["cxx"],
 	},
 	cmake: { mode: "fallback", runnerIds: ["lsp"], filterKinds: ["cmake"] },
+	fish: {
+		mode: "all",
+		runnerIds: ["lsp", "fish-indent"],
+		filterKinds: ["fish"],
+	},
 	shell: {
 		mode: "all",
 		runnerIds: ["lsp", "shellcheck"],

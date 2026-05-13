@@ -1,4 +1,4 @@
-# pi-ask-user
+# @carter-mcalister/pi-ask-user
 
 A Pi package that adds an interactive `ask_user` tool for collecting user decisions during an agent run.
 
@@ -46,7 +46,7 @@ See: `skills/ask-user/references/ask-user-skill-extension-spec.md`.
 ## Install
 
 ```bash
-pi install npm:pi-ask-user
+pi install npm:@carter-mcalister/pi-ask-user
 ```
 
 ## Tool name
@@ -150,6 +150,10 @@ interface AskToolDetails {
   cancelled: boolean;
 }
 ```
+
+## Credits
+
+This package is a maintained fork of [`edlsh/pi-ask-user`](https://github.com/edlsh/pi-ask-user). Credit to Enzo Lucchesi for the original interactive `ask_user` tool, UI patterns, and bundled skill foundation.
 
 ## Changelog
 

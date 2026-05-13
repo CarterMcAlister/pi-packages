@@ -22,7 +22,13 @@ This replacement keeps the auto-naming workflow while switching the prompt and c
 ## Install
 
 ```bash
-pi install /Users/carter/Developer/repos/pi-packages/packages/pi-auto-name
+pi install npm:@carter-mcalister/pi-auto-name
+```
+
+For local development from the package directory:
+
+```bash
+pi install .
 ```
 
 If Pi is already running, use `/reload` after installing the extension.
@@ -38,6 +44,10 @@ pi remove npm:@ryan_nookpi/pi-extension-auto-name
 - This affects session display names, not Pi compaction summaries.
 - If the model or auth is unavailable when a session starts, the session will simply remain unnamed.
 - Titles are intentionally short and clipped to 30 characters.
+
+## Credits
+
+This package replaces and adapts the workflow from [`@ryan_nookpi/pi-extension-auto-name`](https://www.npmjs.com/package/@ryan_nookpi/pi-extension-auto-name). Credit to the original package for the auto-naming pattern this version builds on.
 
 ## Development
 

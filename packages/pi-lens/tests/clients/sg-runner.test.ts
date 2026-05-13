@@ -4,8 +4,10 @@ const safeSpawnAsync = vi.fn();
 const safeSpawn = vi.fn();
 const isSgAvailable = vi.fn();
 const getSgCommand = vi.fn();
+const ensureTool = vi.fn();
 
 vi.mock("../../clients/safe-spawn.js", () => ({ safeSpawnAsync, safeSpawn }));
+vi.mock("../../clients/installer/index.js", () => ({ ensureTool }));
 vi.mock("../../clients/dispatch/runners/utils/runner-helpers.js", () => ({
 	isSgAvailable,
 	getSgCommand,
@@ -13,11 +15,22 @@ vi.mock("../../clients/dispatch/runners/utils/runner-helpers.js", () => ({
 
 describe("SgRunner", () => {
 	beforeEach(() => {
-		vi.clearAllMocks();
-		safeSpawnAsync.mockResolvedValue({ status: 1, error: new Error("not found"), stdout: "", stderr: "" });
-		safeSpawn.mockReturnValue({ status: 0, stdout: "", stderr: "", error: undefined });
+		vi.resetAllMocks();
+		safeSpawnAsync.mockResolvedValue({
+			status: 1,
+			error: new Error("not found"),
+			stdout: "",
+			stderr: "",
+		});
+		safeSpawn.mockReturnValue({
+			status: 0,
+			stdout: "",
+			stderr: "",
+			error: undefined,
+		});
 		isSgAvailable.mockReturnValue(false);
-		getSgCommand.mockReturnValue({ cmd: "sg", args: [] });
+		getSgCommand.mockReturnValue({ cmd: "ast-grep", args: [] });
+		ensureTool.mockResolvedValue(null);
 	});
 
 	describe("isAvailable()", () => {
@@ -44,19 +57,47 @@ describe("SgRunner", () => {
 	});
 
 	describe("ensureAvailable()", () => {
-		it("returns true when sg is in PATH", async () => {
-			safeSpawnAsync.mockResolvedValueOnce({ status: 0, error: null, stdout: "sg 0.22.0", stderr: "" });
+		it("returns true when ast-grep is in PATH", async () => {
+			safeSpawnAsync.mockResolvedValueOnce({
+				status: 0,
+				error: null,
+				stdout: "ast-grep 0.42.1",
+				stderr: "",
+			});
 			const { SgRunner } = await import("../../clients/sg-runner.js");
 			const runner = new SgRunner();
 			const result = await runner.ensureAvailable();
 			expect(result).toBe(true);
 		});
 
-		it("returns false when sg not found and installer fails", async () => {
-			safeSpawnAsync.mockResolvedValueOnce({ status: 1, error: new Error("not found"), stdout: "", stderr: "" });
-			vi.doMock("../../clients/installer/index.js", () => ({
-				ensureTool: vi.fn().mockResolvedValue(null),
-			}));
+		it("rejects Linux group-switch sg and returns false when fallbacks fail", async () => {
+			safeSpawnAsync
+				.mockResolvedValueOnce({
+					status: 1,
+					error: new Error("not found"),
+					stdout: "",
+					stderr: "",
+				})
+				.mockResolvedValueOnce({
+					status: 0,
+					error: null,
+					stdout: "sg from util-linux 2.39",
+					stderr: "",
+				})
+				.mockResolvedValueOnce({
+					status: 1,
+					error: new Error("not found"),
+					stdout: "",
+					stderr: "",
+				});
+			const { SgRunner } = await import("../../clients/sg-runner.js");
+			const runner = new SgRunner();
+			const result = await runner.ensureAvailable();
+			expect(result).toBe(false);
+			expect(ensureTool).toHaveBeenCalledWith("ast-grep");
+		});
+
+		it("returns false when ast-grep not found and installer fails", async () => {
 			const { SgRunner } = await import("../../clients/sg-runner.js");
 			const runner = new SgRunner();
 			const result = await runner.ensureAvailable();
@@ -64,7 +105,12 @@ describe("SgRunner", () => {
 		});
 
 		it("caches true result on second call", async () => {
-			safeSpawnAsync.mockResolvedValue({ status: 0, error: null, stdout: "sg 0.22.0", stderr: "" });
+			safeSpawnAsync.mockResolvedValue({
+				status: 0,
+				error: null,
+				stdout: "ast-grep 0.42.1",
+				stderr: "",
+			});
 			const { SgRunner } = await import("../../clients/sg-runner.js");
 			const runner = new SgRunner();
 			await runner.ensureAvailable();
@@ -75,7 +121,12 @@ describe("SgRunner", () => {
 
 	describe("execSync()", () => {
 		it("returns output from stdout on success", async () => {
-			safeSpawn.mockReturnValue({ status: 0, stdout: '{"file":"a.ts"}', stderr: "", error: undefined });
+			safeSpawn.mockReturnValue({
+				status: 0,
+				stdout: '{"file":"a.ts"}',
+				stderr: "",
+				error: undefined,
+			});
 			const { SgRunner } = await import("../../clients/sg-runner.js");
 			const runner = new SgRunner();
 			const result = runner.execSync(["run", "--pattern", "foo"]);
@@ -84,7 +135,12 @@ describe("SgRunner", () => {
 		});
 
 		it("falls back to stderr when stdout is empty", async () => {
-			safeSpawn.mockReturnValue({ status: 1, stdout: "", stderr: "command failed", error: undefined });
+			safeSpawn.mockReturnValue({
+				status: 1,
+				stdout: "",
+				stderr: "command failed",
+				error: undefined,
+			});
 			const { SgRunner } = await import("../../clients/sg-runner.js");
 			const runner = new SgRunner();
 			const result = runner.execSync(["run"]);
@@ -92,7 +148,12 @@ describe("SgRunner", () => {
 		});
 
 		it("returns error message when spawn errors", async () => {
-			safeSpawn.mockReturnValue({ status: null, stdout: "", stderr: "", error: new Error("spawn failed") });
+			safeSpawn.mockReturnValue({
+				status: null,
+				stdout: "",
+				stderr: "",
+				error: new Error("spawn failed"),
+			});
 			const { SgRunner } = await import("../../clients/sg-runner.js");
 			const runner = new SgRunner();
 			const result = runner.execSync(["run"]);
@@ -101,12 +162,17 @@ describe("SgRunner", () => {
 		});
 
 		it("passes command args through to safeSpawn", async () => {
-			safeSpawn.mockReturnValue({ status: 0, stdout: "", stderr: "", error: undefined });
+			safeSpawn.mockReturnValue({
+				status: 0,
+				stdout: "",
+				stderr: "",
+				error: undefined,
+			});
 			const { SgRunner } = await import("../../clients/sg-runner.js");
 			const runner = new SgRunner();
 			runner.execSync(["scan", "--json"]);
 			expect(safeSpawn).toHaveBeenCalledWith(
-				"sg",
+				"ast-grep",
 				expect.arrayContaining(["scan", "--json"]),
 				expect.any(Object),
 			);

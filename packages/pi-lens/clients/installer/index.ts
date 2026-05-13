@@ -202,11 +202,11 @@ const TOOLS: ToolDefinition[] = [
 	{
 		id: "ast-grep",
 		name: "ast-grep CLI",
-		checkCommand: "sg",
+		checkCommand: "ast-grep",
 		checkArgs: ["--version"],
 		installStrategy: "npm",
 		packageName: "@ast-grep/cli",
-		binaryName: "sg",
+		binaryName: "ast-grep",
 	},
 	{
 		id: "knip",
@@ -663,6 +663,27 @@ function scheduleProbeFlush(): void {
 	}, 300);
 }
 
+function isAstGrepVersionOutput(output: string): boolean {
+	return /\bast[- ]grep\b/i.test(output);
+}
+
+async function verifyAstGrepProbePath(binPath: string): Promise<boolean> {
+	return new Promise((resolve) => {
+		const proc = spawn(binPath, ["--version"], {
+			stdio: ["ignore", "pipe", "pipe"],
+			shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(binPath),
+			timeout: 5000,
+		});
+		let output = "";
+		proc.stdout?.on("data", (data) => (output += data));
+		proc.stderr?.on("data", (data) => (output += data));
+		proc.on("exit", (code) => {
+			resolve(code === 0 && isAstGrepVersionOutput(output));
+		});
+		proc.on("error", () => resolve(false));
+	});
+}
+
 // Exported for testing only.
 export async function checkProbeCache(
 	toolId: string,
@@ -685,6 +706,15 @@ export async function checkProbeCache(
 		if (stat.mtimeMs !== entry.mtimeMs) {
 			logSessionStart(
 				`auto-install probe-cache ${toolId}: miss (mtime changed)`,
+			);
+			delete cache[toolId];
+			_probeCacheDirty = true;
+			scheduleProbeFlush();
+			return undefined;
+		}
+		if (toolId === "ast-grep" && !(await verifyAstGrepProbePath(entry.path))) {
+			logSessionStart(
+				`auto-install probe-cache ${toolId}: miss (not ast-grep: ${entry.path})`,
 			);
 			delete cache[toolId];
 			_probeCacheDirty = true;

@@ -8,7 +8,6 @@
  * Rules: ./rules/ directory
  */
 
-import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { AstGrepParser } from "./ast-grep-parser.js";
@@ -320,18 +319,16 @@ message: found
 		const configPath = path.join(this.ruleDir, ".sgconfig.yml");
 
 		try {
-			const result = spawnSync(
-				"npx",
-				["sg", "scan", "--config", configPath, "--json", absolutePath],
-				{
-					encoding: "utf-8",
-					timeout: 15000,
-					shell: process.platform === "win32",
-				},
-			);
+			const result = this.runner.execSync([
+				"scan",
+				"--config",
+				configPath,
+				"--json",
+				absolutePath,
+			]);
 
 			// ast-grep exits 1 when it finds issues
-			const output = result.stdout || result.stderr || "";
+			const output = result.output;
 			if (!output.trim()) return [];
 
 			const parser = new AstGrepParser(

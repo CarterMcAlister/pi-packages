@@ -36,6 +36,7 @@ import ruffRunner from "./ruff.js";
 import rustClippyRunner from "./rust-clippy.js";
 import semgrepRunner from "./semgrep.js";
 import shellcheckRunner from "./shellcheck.js";
+import fishIndentRunner from "./fish-indent.js";
 import shfmtRunner from "./shfmt.js";
 // Import similarity runner
 import similarityRunner from "./similarity.js";
@@ -83,6 +84,7 @@ export function registerDefaultRunners(registry: RunnerRegistry): void {
 	registry.register(mypyRunner); // Python type checking — mypy (priority 20, config-gated)
 	registry.register(stylelintRunner); // CSS/SCSS/Less lint (priority 10, config-gated)
 	registry.register(shfmtRunner); // Shell formatting check (priority 10)
+	registry.register(fishIndentRunner); // Fish script formatting check (priority 10)
 	registry.register(factRulesRunner); // FactRule pipeline — all registered rules (priority 21)
 	registry.register(htmlhintRunner); // HTML linting — tag pairs, attribute rules (priority 20)
 	registry.register(hadolintRunner); // Dockerfile linting — syntax, best practices (priority 20)

@@ -110,6 +110,11 @@ export const LANGUAGE_CAPABILITY_MATRIX: Record<
 			{ mode: "all", runnerIds: ["fact-rules"], filterKinds: ["cmake"] },
 		],
 	},
+	fish: {
+		name: "Fish Script Formatting",
+		capabilities: ["format"],
+		writeGroups: [primary("fish")],
+	},
 	shell: {
 		name: "Shell Script Linting",
 		capabilities: ["lint", "security"],

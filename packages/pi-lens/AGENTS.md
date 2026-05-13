@@ -24,7 +24,14 @@ All pi packages are `@earendil-works/*` (migrated from `@mariozechner/*` in 0.74
 npm test              # vitest run (all tests)
 npx tsc --project tsconfig.json --noEmit   # type-check
 npm run lint          # same as type-check
+npm run build         # emit JS from TS; run before tests after source changes if stale JS may be present
 ```
+
+Because many test imports use `.js` specifiers while the source of truth is `.ts`, recompile after TS changes before running tests when local `.js` artifacts may exist/stale:
+```
+npm run build && npm test
+```
+Do not hand-edit generated `.js`; regenerate it from the corresponding `.ts`.
 
 ## Debug logs
 - `~/.pi-lens/sessionstart.log` — timestamped lines for every session_start event and tool lifecycle
@@ -103,6 +110,7 @@ v3.8.43 is the package version. Master includes unreleased async runner consiste
 
 ## Conventions
 - TypeScript ESM throughout (`"type": "module"`)
+- Edit the `.ts` sources only. Do **not** hand-edit sibling/generated `.js` files in this repo; pi loads TS via on-the-fly jiti transpilation and JS files are generated artifacts. If tests/runtime could see stale `.js`, run `npm run build` to regenerate from TS before testing.
 - Tests use vitest; mocks via `vi.mock` / `vi.hoisted`
 - Fire-and-forget background work uses `void expr` or `setImmediate`
 - `logSessionStart()` is a no-op in test mode (`VITEST` env var)

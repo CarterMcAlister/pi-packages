@@ -11,8 +11,8 @@ language: python
 message: "'return' with a value should not be used in a generator function"
 
 description: |
-  In Python 3.3+, using 'return <value>' in a generator function raises 
-  a SyntaxError (before it was silently ignored). Use 'return' without 
+  In Python 3.3+, using 'return <value>' in a generator sets the
+  StopIteration.value, which is rarely intended. Use 'return' without
   a value, or yield the value instead.
 
   ✅ FIX: Remove the return value or yield it
@@ -28,9 +28,10 @@ query: |
   (function_definition
     body: (block
       (return_statement
-        (_) @RETURN_VAL) @RETURN))
+        (_) @RETURN_VAL) @RETURN)) @FUNCTION
 
 metavars:
+  - FUNCTION
   - RETURN
   - RETURN_VAL
 
@@ -40,13 +41,12 @@ tags:
   - reliability
   - python-specific
   - generator
-  - syntax-error
 
 examples:
   bad: |
     def my_gen():
         yield 1
-        return 42  # BAD - SyntaxError in Python 3.3+
+        return 42  # BAD - StopIteration.value is rarely intended
 
   good: |
     def my_gen():

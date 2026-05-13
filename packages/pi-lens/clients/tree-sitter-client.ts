@@ -766,6 +766,50 @@ export class TreeSitterClient {
 		}
 	}
 
+	private hasChildToken(node: TreeSitterNode, token: string): boolean {
+		return node.children?.some(
+			(child) => child.type === token || child.text === token,
+		);
+	}
+
+	private containsYieldInFunctionBody(
+		node: TreeSitterNode,
+		root: TreeSitterNode = node,
+	): boolean {
+		for (const child of node.children ?? []) {
+			if (child.type === "yield") return true;
+			if (
+				child !== root &&
+				["function_definition", "class_definition", "lambda"].includes(
+					child.type,
+				)
+			) {
+				continue;
+			}
+			if (this.containsYieldInFunctionBody(child, root)) return true;
+		}
+		return false;
+	}
+
+	private isLikelySqlAlchemyReceiver(text: string): boolean {
+		const tail = text.split(".").pop() ?? text;
+		return new Set([
+			"session",
+			"db_session",
+			"async_session",
+			"sync_session",
+		]).has(tail.toLowerCase());
+	}
+
+	private isSafeSqlAlchemyExpressionCall(node: TreeSitterNode): boolean {
+		if (node.type !== "call") return false;
+		const callee = node.children?.[0]?.text ?? "";
+		const expression = node.text;
+		return ["select", "insert", "update", "delete"].some(
+			(name) => callee === name || expression.startsWith(`${name}(`),
+		);
+	}
+
 	/**
 	 * Post-filter predicate: returns true if the match should be kept, false to skip.
 	 * Each branch is an independent filter identified by name — flat dispatch, no nesting.
@@ -777,6 +821,20 @@ export class TreeSitterClient {
 		captures: Record<string, TreeSitterNode>,
 	): boolean {
 		switch (postFilter) {
+			case "is_generator_with_valued_return": {
+				const returnNode = captures.RETURN;
+				const functionNode =
+					captures.FUNCTION ??
+					(returnNode
+						? this.navigator.findParent(returnNode, ["function_definition"])
+						: undefined);
+				if (!functionNode) return false;
+				// In the Python grammar, `async def` is also a function_definition with
+				// an anonymous `async` child. Coroutines may return values normally;
+				// only synchronous generator functions should be flagged.
+				if (this.hasChildToken(functionNode, "async")) return false;
+				return this.containsYieldInFunctionBody(functionNode);
+			}
 			case "count_params": {
 				const paramsNode = captures.PARAMS;
 				if (!paramsNode) return true;
@@ -1073,10 +1131,27 @@ export class TreeSitterClient {
 						captures.FN?.text ?? "",
 					)
 				);
-			case "py_sql_injection_sink":
-				return /^(execute|executemany|query|raw)$/.test(
-					captures.FN?.text ?? "",
-				);
+			case "py_sql_injection_sink": {
+				const fn = captures.FN?.text ?? "";
+				if (!new Set(["execute", "executemany", "query", "raw"]).has(fn)) {
+					return false;
+				}
+
+				const sqlNode = captures.SQL;
+				const receiver = captures.OBJ?.text ?? "";
+
+				// SQLAlchemy ORM sessions execute expression objects, not raw SQL
+				// strings. `session.execute(stmt)` and `session.execute(select(...))`
+				// are parameterized by construction and were too noisy as blockers.
+				if (fn === "execute" && this.isLikelySqlAlchemyReceiver(receiver)) {
+					return false;
+				}
+				if (sqlNode && this.isSafeSqlAlchemyExpressionCall(sqlNode)) {
+					return false;
+				}
+
+				return true;
+			}
 			case "go_sql_injection_sink":
 				return (
 					/^(Query|QueryContext|QueryRow|QueryRowContext|Exec|ExecContext)$/.test(

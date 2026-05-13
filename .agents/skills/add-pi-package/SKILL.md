@@ -25,7 +25,7 @@ Use this skill when adding a package to this repository. The repo is a Bun works
   - `Install Individual Pi Packages` lists `pi install npm:<package-name>` commands for installable packages.
   - private/local-only packages should be called out instead of listed as normal npm installs.
   - forked, adapted, or vendored packages need a credit entry under `Credits`.
-- Package names usually use `@carter-mcalister/*`; existing third-party names are preserved when intentionally vendored, such as `@victor-software-house/pi-multicodex`, `pi-lens`, `pi-ask-user`, and `pi-powerline-footer`.
+- Package names should use the `@carter-mcalister/*` namespace for all new packages, forks, and adapted upstream packages. Do not keep an upstream publisher namespace for a fork; preserve upstream identity in README credits and package notes instead.
 - Each package `package.json` should set repository metadata with this monorepo URL and a package-specific `directory`:
   - `repository.url`: `https://github.com/CarterMcAlister/pi-packages.git`
   - `repository.directory`: `packages/<directory>`
@@ -47,7 +47,7 @@ Use this skill when adding a package to this repository. The repo is a Bun works
    - upstream repository URL
    - branch/tag/commit used
    - local prefix: `packages/<directory>`
-   - whether the package should retain the upstream npm name or move under `@carter-mcalister/*`
+   - the new `@carter-mcalister/*` package name to use for the fork or adaptation
 
 ## Add From Upstream With A Subtree
 
@@ -93,6 +93,7 @@ For every new package:
 Before finishing, verify:
 
 - `packages/<directory>/package.json` has correct name, version, repository, files, license, and Pi manifest fields.
+- forked or adapted packages use the `@carter-mcalister/*` namespace rather than the upstream publisher namespace.
 - `README.md` package table includes the package.
 - install commands and private-package notes are correct.
 - fork/vendor credits are present when applicable.

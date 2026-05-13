@@ -20,7 +20,7 @@ mise install
 bun install
 bun test
 bun run check
-pi install /absolute/path/to/pi-packages/packages/pi-profiles
+pi install .
 ```
 
 ### Install as a Pi package
@@ -65,18 +65,10 @@ Example:
 ```json
 {
   "description": "General-purpose project workflow with reviewer tools",
-  "packages": [
-    "npm:@carter-mcalister/pi-worktrunk"
-  ],
-  "extensions": [
-    "./extensions"
-  ],
-  "prompts": [
-    "./prompts"
-  ],
-  "themes": [
-    "./themes"
-  ],
+  "packages": ["npm:@carter-mcalister/pi-worktrunk"],
+  "extensions": ["./extensions"],
+  "prompts": ["./prompts"],
+  "themes": ["./themes"],
   "skillpacks": [
     "superpowers",
     {
@@ -89,9 +81,7 @@ Example:
   "defaultThinkingLevel": "high",
   "defaultProvider": "anthropic",
   "defaultModel": "claude-sonnet-4-20250514",
-  "mcps": [
-    "filesystem"
-  ],
+  "mcps": ["filesystem"],
   "mcpServers": {
     "filesystem": {
       "command": "uvx",

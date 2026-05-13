@@ -2,9 +2,11 @@
   <img src="https://raw.githubusercontent.com/apmantza/pi-lens/master/banner.png" alt="pi-lens" width="1100">
 </p>
 
-# pi-lens
+# @carter-mcalister/pi-lens
 
 pi-lens focuses on real-time inline code feedback for AI agents.
+
+This package is a maintained fork of [`apmantza/pi-lens`](https://github.com/apmantza/pi-lens). Credit to Apostolos Mantzaris for the original real-time code feedback extension and rule pipeline this version builds on.
 
 ## What It Does
 
@@ -60,7 +62,7 @@ At `turn_end`, pi-lens:
 ## Install
 
 ```bash
-pi install npm:pi-lens
+pi install npm:@carter-mcalister/pi-lens
 ```
 
 Or from git:
@@ -127,12 +129,14 @@ Supported: TypeScript, TSX, JavaScript, JSX, Python, Go, Rust, Ruby.
 Covers JavaScript/TypeScript, Python, Go, Rust, Ruby, Shell, and CMake. A TypeScript AST-based fact-rule engine extracts function-level metrics and evaluates quality and security rules inline. Blocking rules surface immediately at write time; advisory rules are available via `/lens-booboo`.
 
 **Blocking (surface inline at write time):**
+
 - **cors-wildcard** — `Access-Control-Allow-Origin: *` in server-side code
 - **error-swallowing** — empty catch block (skips documented local fallbacks and fs-boundary catches)
 - **no-commented-credentials** — password/token/secret in commented-out code
 - **high-entropy-string** — string literals with suspiciously high Shannon entropy (possible hardcoded secret)
 
 **Advisory (accessible via `/lens-booboo`):**
+
 - **high-complexity** / **no-complex-conditionals** — cyclomatic complexity and deeply nested conditions
 - **high-fan-out** — function calls too many distinct functions (coordination smell)
 - **unsafe-boundary** — dangerous `any` casts at API boundaries

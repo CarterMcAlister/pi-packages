@@ -1,106 +1,107 @@
 {
-	"name": "@victor-software-house/pi-multicodex",
-	"version": "2.3.1",
-	"description": "Codex account rotation extension for pi",
-	"license": "MIT",
-	"type": "module",
-	"packageManager": "pnpm@10.32.1",
-	"keywords": [
-		"pi-package",
-		"pi",
-		"pi-coding-agent",
-		"extension",
-		"codex",
-		"openai",
-		"oauth"
-	],
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		],
-		"image": "https://raw.githubusercontent.com/victor-software-house/pi-multicodex/main/assets/multicodex-main.png"
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/victor-software-house/pi-multicodex.git"
-	},
-	"homepage": "https://github.com/victor-software-house/pi-multicodex#readme",
-	"bugs": {
-		"url": "https://github.com/victor-software-house/pi-multicodex/issues"
-	},
-	"author": "Victor",
-	"files": [
-		"abort-utils.ts",
-		"account-manager.ts",
-		"auth.ts",
-		"browser.ts",
-		"commands.ts",
-		"extension.ts",
-		"hooks.ts",
-		"index.ts",
-		"provider.ts",
-		"quota.ts",
-		"selection.ts",
-		"status.ts",
-		"storage.ts",
-		"stream-wrapper.ts",
-		"usage-client.ts",
-		"usage.ts",
-		"README.md",
-		"LICENSE",
-		"assets/**",
-		"schemas/**"
-	],
-	"scripts": {
-		"lint": "biome check .",
-		"test": "vitest run -c vitest.config.ts",
-		"tsgo": "tsgo -p tsconfig.json",
-		"generate:schema": "bun scripts/generate-schema.ts",
-		"check": "pnpm lint && pnpm tsgo && pnpm test",
-		"pack:dry": "npm pack --dry-run",
-		"release:dry": "pnpm exec semantic-release --dry-run"
-	},
-	"peerDependencies": {
-		"@mariozechner/pi-ai": "*",
-		"@mariozechner/pi-coding-agent": "*",
-		"@mariozechner/pi-tui": "*"
-	},
-	"peerDependenciesMeta": {
-		"@mariozechner/pi-ai": {
-			"optional": true
-		},
-		"@mariozechner/pi-coding-agent": {
-			"optional": true
-		},
-		"@mariozechner/pi-tui": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.4.7",
-		"@commitlint/cli": "^20.4.4",
-		"@commitlint/config-conventional": "^20.4.4",
-		"@mariozechner/pi-ai": "^0.63.1",
-		"@mariozechner/pi-coding-agent": "^0.63.1",
-		"@mariozechner/pi-tui": "^0.63.1",
-		"@semantic-release/changelog": "^6.0.3",
-		"@semantic-release/commit-analyzer": "^13.0.1",
-		"@semantic-release/git": "^10.0.1",
-		"@semantic-release/github": "^12.0.6",
-		"@semantic-release/npm": "^13.1.5",
-		"@semantic-release/release-notes-generator": "^14.1.0",
-		"@types/node": "^25.5.0",
-		"@typescript/native-preview": "7.0.0-dev.20260314.1",
-		"conventional-changelog-conventionalcommits": "^9.3.0",
-		"semantic-release": "^25.0.3",
-		"typescript": "^5.9.3",
-		"vitest": "^4.1.0"
-	},
-	"engines": {
-		"node": "24.14.0"
-	},
-	"dependencies": {
-		"pi-provider-utils": "^0.0.0",
-		"zod": "^4.3.6"
-	}
+  "name": "@carter-mcalister/pi-multicodex",
+  "version": "2.3.1",
+  "description": "Codex account rotation extension for pi",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "extension",
+    "codex",
+    "openai",
+    "oauth"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "image": "https://raw.githubusercontent.com/victor-software-house/pi-multicodex/main/assets/multicodex-main.png"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CarterMcAlister/pi-packages.git",
+    "directory": "packages/pi-multicodex"
+  },
+  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-multicodex#readme",
+  "bugs": {
+    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
+  },
+  "author": "Victor",
+  "files": [
+    "abort-utils.ts",
+    "account-manager.ts",
+    "auth.ts",
+    "browser.ts",
+    "commands.ts",
+    "extension.ts",
+    "hooks.ts",
+    "index.ts",
+    "provider.ts",
+    "quota.ts",
+    "selection.ts",
+    "status.ts",
+    "storage.ts",
+    "stream-wrapper.ts",
+    "usage-client.ts",
+    "usage.ts",
+    "README.md",
+    "LICENSE",
+    "assets/**",
+    "schemas/**"
+  ],
+  "scripts": {
+    "lint": "biome check .",
+    "test": "vitest run -c vitest.config.ts",
+    "tsgo": "tsgo -p tsconfig.json",
+    "generate:schema": "bun scripts/generate-schema.ts",
+    "check": "pnpm lint && pnpm tsgo && pnpm test",
+    "pack:dry": "npm pack --dry-run",
+    "release:dry": "pnpm exec semantic-release --dry-run"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-ai": {
+      "optional": true
+    },
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    },
+    "@mariozechner/pi-tui": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.7",
+    "@commitlint/cli": "^20.4.4",
+    "@commitlint/config-conventional": "^20.4.4",
+    "@mariozechner/pi-ai": "^0.63.1",
+    "@mariozechner/pi-coding-agent": "^0.63.1",
+    "@mariozechner/pi-tui": "^0.63.1",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.6",
+    "@semantic-release/npm": "^13.1.5",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "@types/node": "^25.5.0",
+    "@typescript/native-preview": "7.0.0-dev.20260314.1",
+    "conventional-changelog-conventionalcommits": "^9.3.0",
+    "semantic-release": "^25.0.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": "24.14.0"
+  },
+  "dependencies": {
+    "pi-provider-utils": "^0.0.0",
+    "zod": "^4.3.6"
+  }
 }

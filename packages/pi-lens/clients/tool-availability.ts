@@ -34,7 +34,7 @@ export const TOOL_REGISTRY: ToolInfo[] = [
 	{
 		name: "ast-grep",
 		command: "npx",
-		versionCommand: ["sg", "--version"],
+		versionCommand: ["--no", "--", "ast-grep", "--version"],
 		versionPattern: /(\d+\.\d+\.\d+)/,
 	},
 	{

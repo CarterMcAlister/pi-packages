@@ -20,7 +20,7 @@ Use this skill when refreshing an existing package under `packages/*` from an up
 - Root `README.md` is the package inventory and must stay accurate.
 - Root `package.json` `pi.extensions` and `pi.skills` define what this monorepo loads in local Pi sessions.
 - Forked, adapted, or vendored packages need credits in root `README.md`.
-- Package manifests in this repo should use this repository metadata even when the code started upstream:
+- Package manifests in this repo should use the `@carter-mcalister/*` package namespace and this repository metadata even when the code started upstream. Do not keep an upstream publisher namespace for a fork or vendored adaptation; preserve upstream identity in README credits and package notes instead:
   - `repository.url`: `https://github.com/CarterMcAlister/pi-packages.git`
   - `repository.directory`: `packages/<directory>`
   - package-specific `homepage` pointing to the package directory in this repo.
@@ -65,7 +65,7 @@ Never leave the temporary upstream remote in the repo after the update.
 After the raw upstream update, inspect and restore this repo's conventions:
 
 1. Package manifest:
-   - keep the intended package name and version policy.
+   - keep the intended `@carter-mcalister/*` package name and version policy.
    - keep monorepo repository, bugs, homepage, publishConfig, files, keywords, license, and Pi manifest fields.
    - keep Pi core packages in `peerDependencies`/`devDependencies` unless docs require runtime dependencies.
 2. Entrypoints:
@@ -83,7 +83,7 @@ After the raw upstream update, inspect and restore this repo's conventions:
 ## Conflict Strategy
 
 - Prefer upstream source for generic implementation files.
-- Prefer this repo's local version for monorepo metadata, package names, Pi manifests, README inventory, release/install notes, and local adaptation docs.
+- Prefer this repo's local version for monorepo metadata, `@carter-mcalister/*` package names, Pi manifests, README inventory, release/install notes, and local adaptation docs.
 - When both sides changed behavior, inspect tests and changelogs before choosing.
 - Keep conflicts small and explain any intentional divergence from upstream.
 - Avoid unrelated cleanup while resolving subtree conflicts.
@@ -97,6 +97,7 @@ Before finishing, verify with real evidence:
 - no nested `.git` directory exists under `packages/<directory>`.
 - root `README.md` still lists the package correctly.
 - package `README.md` and credits still name the upstream source when applicable.
+- forked or adapted package manifests keep the `@carter-mcalister/*` namespace rather than reverting to upstream package names.
 - root `pi.extensions` and `pi.skills` still expose the intended local-session entries.
 - package-specific checks pass when available.
 - `bun run validate:readme` passes after README or package inventory changes.

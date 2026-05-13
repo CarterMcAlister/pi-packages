@@ -18,13 +18,14 @@ description: |
 query: |
   (call
     function: (attribute
+      object: (_) @OBJ
       attribute: (identifier) @FN)
     arguments: (argument_list
       [(binary_operator) (identifier) (call)] @SQL
-      (_)*)
-    (#match? @FN "^(execute|executemany|query|raw)$"))
+      (_)*))
 
 metavars:
+  - OBJ
   - FN
   - SQL
 

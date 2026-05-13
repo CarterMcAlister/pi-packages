@@ -1,5 +1,5 @@
 {
-  "name": "pi-powerline-footer",
+  "name": "@carter-mcalister/pi-powerline-footer",
   "version": "0.5.4",
   "description": "Powerline-style status bar extension for pi coding agent",
   "type": "module",
@@ -23,7 +23,8 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nicobailon/pi-powerline-footer.git"
+    "url": "https://github.com/CarterMcAlister/pi-packages.git",
+    "directory": "packages/pi-powerline-footer"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/**/*.test.ts"
@@ -42,5 +43,9 @@
     "extensions": [
       "./index.ts"
     ]
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
+  },
+  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-powerline-footer#readme"
 }

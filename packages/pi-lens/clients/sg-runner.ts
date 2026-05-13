@@ -47,6 +47,7 @@ export interface SgResult {
 export class SgRunner {
 	private log: (msg: string) => void;
 	private sgPath: string | null = null;
+	private sgArgsPrefix: string[] = [];
 	private available: boolean | null = null;
 
 	constructor(verbose = false) {
@@ -62,14 +63,18 @@ export class SgRunner {
 		// Fast path: already checked
 		if (this.available !== null) return this.available;
 
-		// Check if available in PATH (fast)
-		const pathResult = await safeSpawnAsync("sg", ["--version"], {
-			timeout: 5000,
-		});
-		if (!pathResult.error && pathResult.status === 0) {
-			this.sgPath = "sg";
+		// Check PATH first. Prefer the canonical ast-grep binary; on Linux,
+		// /usr/bin/sg is the util-linux group-switch command and is not ast-grep.
+		const pathCommand = await this.probeCommandCandidates([
+			{ cmd: "ast-grep", argsPrefix: [] },
+			{ cmd: "sg", argsPrefix: [] },
+			{ cmd: "npx", argsPrefix: ["--no", "--", "ast-grep"] },
+		]);
+		if (pathCommand) {
+			this.sgPath = pathCommand.cmd;
+			this.sgArgsPrefix = pathCommand.argsPrefix;
 			this.available = true;
-			this.log("ast-grep found in PATH");
+			this.log(`ast-grep found: ${pathCommand.cmd}`);
 			return true;
 		}
 
@@ -78,8 +83,9 @@ export class SgRunner {
 		const { ensureTool } = await import("./installer/index.js");
 		const installedPath = await ensureTool("ast-grep");
 
-		if (installedPath) {
+		if (installedPath && (await this.probeCommand(installedPath, []))) {
 			this.sgPath = installedPath;
+			this.sgArgsPrefix = [];
 			this.available = true;
 			this.log(`ast-grep auto-installed: ${installedPath}`);
 			return true;
@@ -100,11 +106,43 @@ export class SgRunner {
 		return this.available;
 	}
 
+	private isAstGrepVersionOutput(output: string): boolean {
+		return /\bast[- ]grep\b/i.test(output);
+	}
+
+	private async probeCommand(
+		cmd: string,
+		argsPrefix: string[],
+	): Promise<boolean> {
+		const result = await safeSpawnAsync(cmd, [...argsPrefix, "--version"], {
+			timeout: 5000,
+		});
+		return (
+			!result.error &&
+			result.status === 0 &&
+			this.isAstGrepVersionOutput(`${result.stdout}\n${result.stderr}`)
+		);
+	}
+
+	private async probeCommandCandidates(
+		candidates: Array<{ cmd: string; argsPrefix: string[] }>,
+	): Promise<{ cmd: string; argsPrefix: string[] } | undefined> {
+		for (const candidate of candidates) {
+			if (await this.probeCommand(candidate.cmd, candidate.argsPrefix)) {
+				return candidate;
+			}
+		}
+		return undefined;
+	}
+
 	/**
-	 * Get the sg command to use (local binary or "sg" from PATH)
+	 * Get the ast-grep command to use, plus any npx prefix arguments.
 	 */
-	private getSgCommand(): string {
-		return this.sgPath || "sg";
+	private getSgCommand(): { cmd: string; argsPrefix: string[] } {
+		return {
+			cmd: this.sgPath || "ast-grep",
+			argsPrefix: this.sgArgsPrefix,
+		};
 	}
 
 	/**
@@ -112,6 +150,8 @@ export class SgRunner {
 	 */
 	async exec(args: string[]): Promise<SgResult> {
 		return new Promise((resolve) => {
+			const command = this.getSgCommand();
+			const allArgs = [...command.argsPrefix, ...args];
 			// On Windows with Git Bash/MSYS2, we need to use bash to properly
 			// handle $variables in patterns (prevent shell expansion)
 			const isWindows = process.platform === "win32";
@@ -121,7 +161,7 @@ export class SgRunner {
 			if (isWindows && hasBash) {
 				// Use bash -c with properly escaped command
 				// In bash, use single quotes around arguments containing $ to prevent expansion
-				const escapedArgs = args.map((arg) => {
+				const escapedArgs = allArgs.map((arg) => {
 					// For bash, wrap $-containing args in single quotes
 					if (arg.includes("$")) {
 						return `'${arg.replace(/'/g, "'\\''")}'`;
@@ -132,7 +172,10 @@ export class SgRunner {
 					}
 					return arg;
 				});
-				const bashCommand = `${this.getSgCommand()} ${escapedArgs.join(" ")}`;
+				const escapedCmd = /[\s"]/g.test(command.cmd)
+					? `"${command.cmd.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+					: command.cmd;
+				const bashCommand = `${escapedCmd} ${escapedArgs.join(" ")}`;
 				proc = spawn("bash", ["-c", bashCommand], {
 					stdio: ["ignore", "pipe", "pipe"],
 					windowsHide: true,
@@ -140,14 +183,14 @@ export class SgRunner {
 			} else if (isWindows) {
 				// Fallback: shell:true needed for npm-installed .cmd wrappers on Windows.
 				// Pass cmd and args separately — do not concatenate into one string.
-				proc = spawn(this.getSgCommand(), args.map(escapeWindowsArg), {
+				proc = spawn(command.cmd, allArgs.map(escapeWindowsArg), {
 					stdio: ["ignore", "pipe", "pipe"],
 					shell: true,
 					windowsHide: true,
 				});
 			} else {
 				// Unix: normal spawn without shell
-				proc = spawn(this.getSgCommand(), args, {
+				proc = spawn(command.cmd, allArgs, {
 					stdio: ["ignore", "pipe", "pipe"],
 				});
 			}
@@ -242,7 +285,7 @@ export class SgRunner {
 	 */
 	execSync(args: string[]): { output: string; error?: string } {
 		const { cmd: sgCmd, args: sgPre } = getSgCommand();
-		const result = safeSpawn(sgCmd, [...sgPre, "sg", ...args], {
+		const result = safeSpawn(sgCmd, [...sgPre, ...args], {
 			timeout: 30000,
 		});
 
@@ -275,9 +318,10 @@ export class SgRunner {
 			fs.writeFileSync(configFile, `ruleDirs:\n  - ./rules\n`);
 			fs.writeFileSync(ruleFile, ruleYaml);
 
+			const { cmd: sgCmd, args: sgPre } = getSgCommand();
 			const result = safeSpawn(
-				"npx",
-				["sg", "scan", "--config", configFile, "--json", dir],
+				sgCmd,
+				[...sgPre, "scan", "--config", configFile, "--json", dir],
 				{ timeout },
 			);
 
@@ -311,9 +355,10 @@ export class SgRunner {
 			fs.writeFileSync(configFile, `ruleDirs:\n  - ./rules\n`);
 			fs.writeFileSync(ruleFile, ruleYaml);
 
+			const { cmd: sgCmd, args: sgPre } = getSgCommand();
 			const result = safeSpawn(
-				"npx",
-				["sg", "scan", "--config", configFile, "--json", dir],
+				sgCmd,
+				[...sgPre, "scan", "--config", configFile, "--json", dir],
 				{ timeout },
 			);
 

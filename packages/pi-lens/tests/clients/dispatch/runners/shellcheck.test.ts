@@ -105,6 +105,14 @@ describe("shellcheck runner", () => {
 		}
 	});
 
+	it("appliesTo shell but not fish (so dispatch skips .fish files)", async () => {
+		const runner = (
+			await import("../../../../clients/dispatch/runners/shellcheck.js")
+		).default;
+		expect(runner.appliesTo).toContain("shell");
+		expect(runner.appliesTo).not.toContain("fish");
+	});
+
 	it("returns failed/blocking when shellcheck reports error severity", async () => {
 		const env = setupTestEnvironment("pi-lens-shellcheck-");
 		try {

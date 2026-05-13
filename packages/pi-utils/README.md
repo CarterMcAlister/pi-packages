@@ -4,26 +4,26 @@ A grab-bag of personal [Pi Coding Agent](https://github.com/badlogic/pi-mono) ex
 
 ## What's included
 
-| Extension        | Slash command(s) | Notes                                                                                      |
-| ---------------- | ---------------- | ------------------------------------------------------------------------------------------ |
-| `context`        | `/context`       | Small TUI view of loaded extensions, skills, project context files, and token/cost usage   |
-| `files`          | `/files`, `/diff`| File picker over the git tree + session-referenced files, with reveal/open/edit/diff       |
-| `loop`           | `/loop`          | Background review/iteration loop helper                                                    |
-| `notify`         | _(event hook)_   | Native terminal notification when the agent finishes a turn (OSC 777 / OSC 99 / WT toast)  |
-| `whimsical`      | _(spinner hook)_ | Replaces the boring "Thinking..." spinner with a rotating list of whimsical verbs          |
-| `mac-key-display` | `/hotkeys`       | On macOS, rewrites displayed modifier names only: Alt→Option, Ctrl→Control, Super→Command |
-| `pi-review-loop` | `/review`        | Automated code-review loop with configurable settings                                      |
+| Extension         | Slash command(s)  | Notes                                                                                     |
+| ----------------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| `context`         | `/context`        | Small TUI view of loaded extensions, skills, project context files, and token/cost usage  |
+| `files`           | `/files`, `/diff` | File picker over the git tree + session-referenced files, with reveal/open/edit/diff      |
+| `loop`            | `/loop`           | Background review/iteration loop helper                                                   |
+| `notify`          | _(event hook)_    | Native terminal notification when the agent finishes a turn (OSC 777 / OSC 99 / WT toast) |
+| `whimsical`       | _(spinner hook)_  | Replaces the boring "Thinking..." spinner with a rotating list of whimsical verbs         |
+| `mac-key-display` | `/hotkeys`        | On macOS, rewrites displayed modifier names only: Alt→Option, Ctrl→Control, Super→Command |
+| `pi-review-loop`  | `/review`         | Automated code-review loop with configurable settings                                     |
 
 ## Install
 
 ```bash
-pi install /Users/carter/Developer/repos/pi-packages/packages/pi-utils
+pi install npm:@carter-mcalister/pi-utils
 ```
 
-Or, once published:
+For local development from the package directory:
 
 ```bash
-pi install npm:@carter-mcalister/pi-utils
+pi install .
 ```
 
 If Pi is already running, use `/reload` after installing.

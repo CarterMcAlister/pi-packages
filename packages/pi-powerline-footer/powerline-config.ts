@@ -6,6 +6,10 @@ export interface PowerlineConfig {
   customItems: CustomStatusItem[];
   mouseScroll: boolean;
   fixedEditor: boolean;
+  workingVibes: boolean;
+  welcomeOverlay: boolean;
+  showCost: boolean;
+  showCacheRead: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -84,7 +88,16 @@ function normalizeCustomItems(raw: unknown): CustomStatusItem[] {
 }
 
 export function parsePowerlineConfig(value: unknown, presets: readonly StatusLinePreset[]): PowerlineConfig {
-  const defaultConfig: PowerlineConfig = { preset: "default", customItems: [], mouseScroll: true, fixedEditor: true };
+  const defaultConfig: PowerlineConfig = {
+    preset: "default",
+    customItems: [],
+    mouseScroll: true,
+    fixedEditor: true,
+    workingVibes: true,
+    welcomeOverlay: true,
+    showCost: true,
+    showCacheRead: true,
+  };
 
   const directPreset = normalizePreset(value, presets);
   if (directPreset) return { ...defaultConfig, preset: directPreset };
@@ -96,6 +109,10 @@ export function parsePowerlineConfig(value: unknown, presets: readonly StatusLin
     customItems: normalizeCustomItems(value.customItems),
     mouseScroll: value.mouseScroll !== false,
     fixedEditor: value.fixedEditor !== false,
+    workingVibes: value.workingVibes !== false,
+    welcomeOverlay: value.welcomeOverlay !== false,
+    showCost: value.showCost !== false,
+    showCacheRead: value.showCacheRead !== false,
   };
 }
 
@@ -127,7 +144,7 @@ export function nextPowerlineSettingWithPreset(existingPowerlineSetting: unknown
 
 export function nextPowerlineSettingWithOptions(
   existingPowerlineSetting: unknown,
-  updates: Partial<Pick<PowerlineConfig, "mouseScroll" | "fixedEditor">>,
+  updates: Partial<Pick<PowerlineConfig, "mouseScroll" | "fixedEditor" | "showCost" | "showCacheRead">>,
   currentPreset: StatusLinePreset,
 ): unknown {
   if (!isRecord(existingPowerlineSetting)) {

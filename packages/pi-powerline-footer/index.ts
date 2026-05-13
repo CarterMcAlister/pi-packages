@@ -69,6 +69,10 @@ let config: PowerlineConfig = {
   customItems: [],
   mouseScroll: true,
   fixedEditor: true,
+  workingVibes: true,
+  welcomeOverlay: true,
+  showCost: true,
+  showCacheRead: true,
 };
 
 const CUSTOM_COMPACTION_STATUS_KEY = "compact-policy";
@@ -627,7 +631,7 @@ function writePowerlinePresetSetting(preset: StatusLinePreset, cwd: string = pro
 
 function writePowerlineOptionSetting(
   cwd: string,
-  updates: Partial<Pick<PowerlineConfig, "mouseScroll" | "fixedEditor">>,
+  updates: Partial<Pick<PowerlineConfig, "mouseScroll" | "fixedEditor" | "showCost" | "showCacheRead">>,
   currentPreset: StatusLinePreset,
 ): boolean {
   return writePowerlineSetting(cwd, (existingPowerlineSetting) => (
@@ -890,9 +894,15 @@ function computeResponsiveLayout(
   const secondaryIds = mergedSegments.secondarySegments;
   const allSegmentIds = [...primaryIds, ...secondaryIds];
   
+  const isSegmentEnabled = (segmentId: StatusLineSegmentId): boolean => {
+    if (!config.showCost && segmentId === "cost") return false;
+    if (!config.showCacheRead && segmentId === "cache_read") return false;
+    return true;
+  };
+
   // Render all segments and get their widths
   const renderedSegments: { content: string; width: number }[] = [];
-  for (const segId of allSegmentIds) {
+  for (const segId of allSegmentIds.filter(isSegmentEnabled)) {
     const { content, width, visible } = renderSegmentWithWidth(segId, ctx);
     if (visible) {
       renderedSegments.push({ content, width });
@@ -993,7 +1003,84 @@ export default function powerlineFooter(pi: ExtensionAPI) {
   let lastEditorInputAt = 0;
 
   const getShellPath = () => process.env.SHELL || "/bin/sh";
-  const getShellCwd = () => shellSession?.state.cwd ?? currentCtx?.cwd ?? process.cwd();
+  const getAgentCwd = () => {
+    const getCwd = currentCtx?.sessionManager?.getCwd;
+    if (typeof getCwd === "function") {
+      try {
+        const cwd = getCwd.call(currentCtx.sessionManager);
+        if (typeof cwd === "string" && cwd.length > 0) return cwd;
+      } catch { }
+    }
+
+    return currentCtx?.cwd ?? process.cwd();
+  };
+  const getShellCwd = () => shellSession?.state.cwd ?? getAgentCwd();
+
+  const updateObjectCwdProperty = (target: unknown, cwd: string): boolean => {
+    if (!target || typeof target !== "object") return false;
+
+    try {
+      if (Reflect.set(target, "cwd", cwd)) return true;
+    } catch { }
+
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(target, "cwd");
+      if (!descriptor || descriptor.configurable !== false) {
+        Object.defineProperty(target, "cwd", {
+          configurable: true,
+          enumerable: descriptor?.enumerable ?? true,
+          get: () => cwd,
+        });
+        return true;
+      }
+    } catch { }
+
+    return false;
+  };
+
+  const updateSessionHeaderCwd = (sessionManager: any, cwd: string): void => {
+    if (!sessionManager || typeof sessionManager !== "object") return;
+
+    try {
+      const header = typeof sessionManager.getHeader === "function" ? sessionManager.getHeader() : undefined;
+      if (header && typeof header === "object") {
+        header.cwd = cwd;
+      }
+
+      const rewriteFile = Reflect.get(sessionManager, "_rewriteFile");
+      if (typeof rewriteFile === "function") {
+        rewriteFile.call(sessionManager);
+      }
+    } catch { }
+  };
+
+  const syncShellCwdToAgentMode = (cwd: string | undefined): boolean => {
+    if (!cwd || cwd === getAgentCwd()) return false;
+
+    updateObjectCwdProperty(currentCtx, cwd);
+
+    const sessionManager = currentCtx?.sessionManager;
+    updateObjectCwdProperty(sessionManager, cwd);
+    updateSessionHeaderCwd(sessionManager, cwd);
+
+    try {
+      if (existsSync(cwd)) process.chdir(cwd);
+    } catch { }
+
+    const setFooterCwd = footerDataRef ? Reflect.get(footerDataRef, "setCwd") : undefined;
+    if (typeof setFooterCwd === "function") {
+      try {
+        setFooterCwd.call(footerDataRef, cwd);
+      } catch { }
+    }
+
+    customCompactionEnabled = detectCustomCompactionEnabled(cwd);
+    invalidateGitStatus();
+    invalidateGitBranch();
+    requestStatusRender();
+    return true;
+  };
+
   const welcomeDismissScheduler = createWelcomeDismissScheduler({
     dismiss: (ctx: unknown) => dismissWelcome(ctx),
     getGeneration: () => sessionGeneration,
@@ -1087,6 +1174,7 @@ export default function powerlineFooter(pi: ExtensionAPI) {
         bashTranscript,
         requestStatusRender,
         (command, cwd) => appendProjectHistory(currentCtx?.cwd ?? process.cwd(), command, cwd),
+        syncShellCwdToAgentMode,
       );
     }
     await shellSession.ensureReady();
@@ -1132,8 +1220,9 @@ export default function powerlineFooter(pi: ExtensionAPI) {
 
     bashModeActive = value;
     currentEditor?.dismissBashModeUi?.();
+    const synced = syncShellCwdToAgentMode(shellSession?.state.cwd);
     requestStatusRender();
-    ctx.ui.notify("Bash mode disabled", "info");
+    ctx.ui.notify(synced ? `Bash mode disabled — cwd synced to ${getAgentCwd()}` : "Bash mode disabled", "info");
   };
 
   function overlaySelectListTheme(theme: Theme) {
@@ -1233,11 +1322,13 @@ export default function powerlineFooter(pi: ExtensionAPI) {
     }
     
     // Initialize vibe manager (needs modelRegistry from ctx)
-    initVibeManager(ctx);
+    if (config.workingVibes) {
+      initVibeManager(ctx);
+    }
     
     if (enabled && ctx.hasUI) {
       setupCustomEditor(ctx);
-      if (event.reason === "startup") {
+      if (config.welcomeOverlay && event.reason === "startup") {
         if (settings.quietStartup === true) {
           setupWelcomeHeader(ctx);
         } else {
@@ -1339,7 +1430,7 @@ export default function powerlineFooter(pi: ExtensionAPI) {
   // Generate themed working message before agent starts (has access to user's prompt)
   pi.on("before_agent_start", async (event, ctx) => {
     lastUserPrompt = event.prompt;
-    if (ctx.hasUI) {
+    if (config.workingVibes && ctx.hasUI) {
       onVibeBeforeAgentStart(event.prompt, ctx.ui.setWorkingMessage);
     }
   });
@@ -1349,7 +1440,9 @@ export default function powerlineFooter(pi: ExtensionAPI) {
   pi.on("agent_start", async (_event, ctx) => {
     isStreaming = true;
     liveAssistantUsage = null;
-    onVibeAgentStart();
+    if (config.workingVibes) {
+      onVibeAgentStart();
+    }
     dismissWelcome(ctx);
     currentCtx = ctx;
   });
@@ -1386,7 +1479,7 @@ export default function powerlineFooter(pi: ExtensionAPI) {
   // Also dismiss on tool calls (agent is working) + refresh vibe if rate limit allows
   pi.on("tool_call", async (event, ctx) => {
     dismissWelcome(ctx);
-    if (ctx.hasUI) {
+    if (config.workingVibes && ctx.hasUI) {
       // Extract recent agent context from session for richer vibe generation
       const agentContext = getRecentAgentContext(ctx);
       onVibeToolCall(event.toolName, event.input, ctx.ui.setWorkingMessage, agentContext);
@@ -1692,7 +1785,9 @@ export default function powerlineFooter(pi: ExtensionAPI) {
     liveAssistantUsage = null;
     currentCtx = ctx;
     if (ctx.hasUI) {
-      onVibeAgentEnd(ctx.ui.setWorkingMessage); // working-vibes internal state + reset message
+      if (config.workingVibes) {
+        onVibeAgentEnd(ctx.ui.setWorkingMessage); // working-vibes internal state + reset message
+      }
       if (stashedEditorText !== null) {
         if (ctx.ui.getEditorText().trim() === "") {
           ctx.ui.setEditorText(stashedEditorText);
@@ -1786,6 +1881,34 @@ export default function powerlineFooter(pi: ExtensionAPI) {
           ctx.ui.notify(`Powerline fixed editor ${config.fixedEditor ? "enabled" : "disabled"}`, "info");
         } else {
           ctx.ui.notify(`Powerline fixed editor ${config.fixedEditor ? "enabled" : "disabled"} (not persisted; check settings.json)`, "warning");
+        }
+        return;
+      }
+
+      const costMatch = /^(?:cost|price)(?:\s+(on|off|toggle))?$/.exec(normalizedArgs);
+      if (costMatch) {
+        const mode = costMatch[1] ?? "toggle";
+        config.showCost = mode === "toggle" ? !config.showCost : mode === "on";
+        resetLayoutCache();
+        requestStatusRender();
+        if (writePowerlineOptionSetting(ctx.cwd, { showCost: config.showCost }, config.preset)) {
+          ctx.ui.notify(`Powerline cost display ${config.showCost ? "enabled" : "disabled"}`, "info");
+        } else {
+          ctx.ui.notify(`Powerline cost display ${config.showCost ? "enabled" : "disabled"} (not persisted; check settings.json)`, "warning");
+        }
+        return;
+      }
+
+      const cacheReadMatch = /^(?:cache-read|cache)(?:\s+(on|off|toggle))?$/.exec(normalizedArgs);
+      if (cacheReadMatch) {
+        const mode = cacheReadMatch[1] ?? "toggle";
+        config.showCacheRead = mode === "toggle" ? !config.showCacheRead : mode === "on";
+        resetLayoutCache();
+        requestStatusRender();
+        if (writePowerlineOptionSetting(ctx.cwd, { showCacheRead: config.showCacheRead }, config.preset)) {
+          ctx.ui.notify(`Powerline cache-read display ${config.showCacheRead ? "enabled" : "disabled"}`, "info");
+        } else {
+          ctx.ui.notify(`Powerline cache-read display ${config.showCacheRead ? "enabled" : "disabled"} (not persisted; check settings.json)`, "warning");
         }
         return;
       }

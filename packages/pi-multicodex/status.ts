@@ -34,6 +34,9 @@ type MaybeModel = Model<Api> | undefined;
 export type PercentDisplayMode = "left" | "used";
 export type ResetWindowMode = "5h" | "7d" | "both";
 export type StatusOrder = "account-first" | "usage-first";
+export type FooterItemId = "brand" | "account" | "5h" | "7d";
+
+const DEFAULT_FOOTER_ITEMS: FooterItemId[] = ["brand", "account", "5h", "7d"];
 
 export interface FooterPreferences {
 	usageMode: PercentDisplayMode;
@@ -41,6 +44,7 @@ export interface FooterPreferences {
 	showAccount: boolean;
 	showReset: boolean;
 	order: StatusOrder;
+	footerItems?: FooterItemId[];
 }
 
 const DEFAULT_PREFERENCES: FooterPreferences = {
@@ -49,6 +53,7 @@ const DEFAULT_PREFERENCES: FooterPreferences = {
 	showAccount: true,
 	showReset: true,
 	order: "account-first",
+	footerItems: DEFAULT_FOOTER_ITEMS,
 };
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -66,6 +71,34 @@ function isResetWindowMode(value: unknown): value is ResetWindowMode {
 
 function isStatusOrder(value: unknown): value is StatusOrder {
 	return value === "account-first" || value === "usage-first";
+}
+
+function isFooterItemId(value: unknown): value is FooterItemId {
+	return (
+		value === "brand" || value === "account" || value === "5h" || value === "7d"
+	);
+}
+
+function normalizeFooterItems(
+	record: Record<string, unknown> | null,
+): FooterItemId[] {
+	if (Array.isArray(record?.footerItems)) {
+		const items = record.footerItems.filter(isFooterItemId);
+		return items.length > 0 ? [...new Set(items)] : DEFAULT_FOOTER_ITEMS;
+	}
+	if (record?.showAccount === false) {
+		return DEFAULT_FOOTER_ITEMS.filter((item) => item !== "account");
+	}
+	return DEFAULT_FOOTER_ITEMS;
+}
+
+function hasFooterItem(
+	preferences: FooterPreferences,
+	item: FooterItemId,
+): boolean {
+	if (preferences.footerItems) return preferences.footerItems.includes(item);
+	if (item === "account" && preferences.showAccount === false) return false;
+	return DEFAULT_FOOTER_ITEMS.includes(item);
 }
 
 function normalizePreferences(value: unknown): FooterPreferences {
@@ -88,6 +121,7 @@ function normalizePreferences(value: unknown): FooterPreferences {
 		order: isStatusOrder(record?.order)
 			? record.order
 			: DEFAULT_PREFERENCES.order,
+		footerItems: normalizeFooterItems(record),
 	};
 }
 
@@ -204,7 +238,7 @@ function formatUsageSegment(
 	resetAt: number | undefined,
 	showReset: boolean,
 	preferences: FooterPreferences,
-): string {
+): string | undefined {
 	const displayPercent = usedToDisplayPercent(
 		usedPercent,
 		preferences.usageMode,
@@ -212,16 +246,16 @@ function formatUsageSegment(
 	const parts = [
 		`${label}${formatPercent(displayPercent, preferences.usageMode)}`,
 	];
+	const severity = getUsageSeverityToken(displayPercent, preferences.usageMode);
+	if (severity === "success") return undefined;
+
 	if (showReset) {
 		const countdown = formatResetCountdown(resetAt);
 		if (countdown) {
 			parts.push(`(↺${countdown})`);
 		}
 	}
-	return ctx.ui.theme.fg(
-		getUsageSeverityToken(displayPercent, preferences.usageMode),
-		parts.join(" "),
-	);
+	return ctx.ui.theme.fg(severity, parts.join(" "));
 }
 
 export function isManagedModel(model: MaybeModel): boolean {
@@ -234,38 +268,45 @@ export function formatActiveAccountStatus(
 	usage: CodexUsageSnapshot | undefined,
 	preferences: FooterPreferences,
 ): string {
-	const accountText = preferences.showAccount
+	const brandText = hasFooterItem(preferences, "brand")
+		? formatBrand(ctx)
+		: undefined;
+	const accountText = hasFooterItem(preferences, "account")
 		? ctx.ui.theme.fg("text", accountEmail)
 		: undefined;
 	if (!usage) {
-		return [formatBrand(ctx), accountText, formatLoading(ctx)]
+		return [brandText, accountText, formatLoading(ctx)]
 			.filter(Boolean)
 			.join(" ");
 	}
 
-	const fiveHour = formatUsageSegment(
-		ctx,
-		FIVE_HOUR_LABEL,
-		usage.primary?.usedPercent,
-		usage.primary?.resetAt,
-		shouldShowReset(preferences, "5h"),
-		preferences,
-	);
-	const sevenDay = formatUsageSegment(
-		ctx,
-		SEVEN_DAY_LABEL,
-		usage.secondary?.usedPercent,
-		usage.secondary?.resetAt,
-		shouldShowReset(preferences, "7d"),
-		preferences,
-	);
+	const fiveHour = hasFooterItem(preferences, "5h")
+		? formatUsageSegment(
+				ctx,
+				FIVE_HOUR_LABEL,
+				usage.primary?.usedPercent,
+				usage.primary?.resetAt,
+				shouldShowReset(preferences, "5h"),
+				preferences,
+			)
+		: undefined;
+	const sevenDay = hasFooterItem(preferences, "7d")
+		? formatUsageSegment(
+				ctx,
+				SEVEN_DAY_LABEL,
+				usage.secondary?.usedPercent,
+				usage.secondary?.resetAt,
+				shouldShowReset(preferences, "7d"),
+				preferences,
+			)
+		: undefined;
 
 	const usageSegments = [fiveHour, sevenDay].filter(Boolean);
 	const usageText = usageSegments.join(` ${formatSeparator(ctx)} `);
 	const leading =
 		preferences.order === "account-first"
-			? [formatBrand(ctx), accountText, usageText]
-			: [formatBrand(ctx), usageText];
+			? [brandText, accountText, usageText]
+			: [brandText, usageText];
 	const trailing =
 		preferences.order === "account-first" ? [] : [accountText].filter(Boolean);
 
@@ -276,6 +317,13 @@ export function formatActiveAccountStatus(
 
 function getBooleanLabel(value: boolean): string {
 	return value ? "on" : "off";
+}
+
+function getFooterItemLabel(
+	preferences: FooterPreferences,
+	item: FooterItemId,
+): string {
+	return getBooleanLabel(hasFooterItem(preferences, item));
 }
 
 function createSettingsItems(preferences: FooterPreferences): SettingItem[] {
@@ -296,10 +344,31 @@ function createSettingsItems(preferences: FooterPreferences): SettingItem[] {
 			values: ["5h", "7d", "both"],
 		},
 		{
-			id: "showAccount",
+			id: "footerItem:brand",
+			label: "Show brand",
+			description: "Display the Codex brand label in the footer",
+			currentValue: getFooterItemLabel(preferences, "brand"),
+			values: ["on", "off"],
+		},
+		{
+			id: "footerItem:account",
 			label: "Show account",
 			description: "Display the active account identifier in the footer",
-			currentValue: getBooleanLabel(preferences.showAccount),
+			currentValue: getFooterItemLabel(preferences, "account"),
+			values: ["on", "off"],
+		},
+		{
+			id: "footerItem:5h",
+			label: "Show 5h usage",
+			description: "Display the 5-hour quota window when it needs attention",
+			currentValue: getFooterItemLabel(preferences, "5h"),
+			values: ["on", "off"],
+		},
+		{
+			id: "footerItem:7d",
+			label: "Show 7d usage",
+			description: "Display the 7-day quota window when it needs attention",
+			currentValue: getFooterItemLabel(preferences, "7d"),
 			values: ["on", "off"],
 		},
 		{
@@ -332,8 +401,25 @@ function applyPreferenceChange(
 	if (id === "resetWindow" && isResetWindowMode(newValue)) {
 		return { ...preferences, resetWindow: newValue };
 	}
-	if (id === "showAccount") {
-		return { ...preferences, showAccount: newValue === "on" };
+	if (id.startsWith("footerItem:")) {
+		const item = id.slice("footerItem:".length);
+		if (!isFooterItemId(item)) return preferences;
+		const footerItems = new Set(
+			preferences.footerItems ?? DEFAULT_FOOTER_ITEMS,
+		);
+		if (newValue === "on") {
+			footerItems.add(item);
+		} else {
+			footerItems.delete(item);
+		}
+		return {
+			...preferences,
+			showAccount:
+				item === "account" ? newValue === "on" : preferences.showAccount,
+			footerItems: DEFAULT_FOOTER_ITEMS.filter((footerItem) =>
+				footerItems.has(footerItem),
+			),
+		};
 	}
 	if (id === "showReset") {
 		return { ...preferences, showReset: newValue === "on" };

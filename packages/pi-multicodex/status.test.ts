@@ -54,7 +54,7 @@ describe("formatActiveAccountStatus", () => {
 			ctx,
 			"a@example.com",
 			{
-				primary: { usedPercent: 25, resetAt: Date.now() + 60_000 },
+				primary: { usedPercent: 75, resetAt: Date.now() + 60_000 },
 				secondary: { usedPercent: 60, resetAt: Date.now() + 3_600_000 },
 				fetchedAt: 0,
 			},
@@ -63,7 +63,7 @@ describe("formatActiveAccountStatus", () => {
 
 		expect(text).toContain("Codex");
 		expect(text).toContain("a@example.com");
-		expect(text).toContain("5h:75% left (↺");
+		expect(text).toContain("5h:25% left (↺");
 		expect(text).toContain("7d:40% left (↺");
 		expect(text).not.toContain("(5h:↺");
 		expect(text).not.toContain("(7d:↺");
@@ -75,8 +75,8 @@ describe("formatActiveAccountStatus", () => {
 			ctx,
 			"a@example.com",
 			{
-				primary: { usedPercent: 10, resetAt: 1 },
-				secondary: { usedPercent: 20, resetAt: 2 },
+				primary: { usedPercent: 60, resetAt: 1 },
+				secondary: { usedPercent: 70, resetAt: 2 },
 				fetchedAt: 0,
 			},
 			{
@@ -88,8 +88,8 @@ describe("formatActiveAccountStatus", () => {
 			},
 		);
 
-		expect(text).toContain("5h:10% used");
-		expect(text).toContain("7d:20% used");
+		expect(text).toContain("5h:60% used");
+		expect(text).toContain("7d:70% used");
 		expect(text).not.toContain("a@example.com");
 		expect(text).not.toContain("↺");
 	});
@@ -102,7 +102,7 @@ describe("formatActiveAccountStatus", () => {
 			ctx,
 			"a@example.com",
 			{
-				primary: { usedPercent: 25, resetAt: Date.now() + 60_000 },
+				primary: { usedPercent: 75, resetAt: Date.now() + 60_000 },
 				secondary: { usedPercent: 95, resetAt: Date.now() + 120_000 },
 				fetchedAt: 0,
 			},
@@ -111,7 +111,7 @@ describe("formatActiveAccountStatus", () => {
 
 		expect(text).toContain("[muted:Codex]");
 		expect(text).toContain("[text:a@example.com]");
-		expect(text).toContain("[success:5h:75% left (↺");
+		expect(text).toContain("[warning:5h:25% left (↺");
 		expect(text).toContain("[error:7d:5% left (↺");
 		expect(text).toContain("[muted:·]");
 	});
@@ -188,8 +188,8 @@ describe("createUsageStatusController", () => {
 			getActiveAccount: () => ({ email: "a@example.com" }),
 			getCachedUsage: vi.fn(),
 			refreshUsageForAccount: vi.fn().mockResolvedValue({
-				primary: { usedPercent: 10, resetAt: 1 },
-				secondary: { usedPercent: 20, resetAt: 2 },
+				primary: { usedPercent: 85, resetAt: 1 },
+				secondary: { usedPercent: 80, resetAt: 2 },
 				fetchedAt: 0,
 			}),
 		} as never);
@@ -202,11 +202,11 @@ describe("createUsageStatusController", () => {
 		);
 		expect(setStatus).toHaveBeenCalledWith(
 			"multicodex-usage",
-			expect.stringContaining("5h:90% left"),
+			expect.stringContaining("5h:15% left"),
 		);
 		expect(setStatus).toHaveBeenCalledWith(
 			"multicodex-usage",
-			expect.stringContaining("7d:80% left"),
+			expect.stringContaining("7d:20% left"),
 		);
 	});
 
@@ -216,8 +216,8 @@ describe("createUsageStatusController", () => {
 			onStateChange: () => () => undefined,
 			getActiveAccount: () => ({ email: "a@example.com" }),
 			getCachedUsage: () => ({
-				primary: { usedPercent: 30, resetAt: 1 },
-				secondary: { usedPercent: 40, resetAt: 2 },
+				primary: { usedPercent: 80, resetAt: 1 },
+				secondary: { usedPercent: 75, resetAt: 2 },
 				fetchedAt: 0,
 			}),
 			refreshUsageForAccount: vi.fn().mockResolvedValue(undefined),
@@ -227,11 +227,11 @@ describe("createUsageStatusController", () => {
 
 		expect(setStatus).toHaveBeenCalledWith(
 			"multicodex-usage",
-			expect.stringContaining("5h:70% left"),
+			expect.stringContaining("5h:20% left"),
 		);
 		expect(setStatus).toHaveBeenCalledWith(
 			"multicodex-usage",
-			expect.stringContaining("7d:60% left"),
+			expect.stringContaining("7d:25% left"),
 		);
 	});
 
@@ -239,16 +239,16 @@ describe("createUsageStatusController", () => {
 		vi.useFakeTimers();
 		const setStatus = vi.fn();
 		const refreshUsageForAccount = vi.fn().mockResolvedValue({
-			primary: { usedPercent: 10, resetAt: 1 },
-			secondary: { usedPercent: 20, resetAt: 2 },
+			primary: { usedPercent: 85, resetAt: 1 },
+			secondary: { usedPercent: 80, resetAt: 2 },
 			fetchedAt: 0,
 		});
 		const controller = createUsageStatusController({
 			onStateChange: () => () => undefined,
 			getActiveAccount: () => ({ email: "a@example.com" }),
 			getCachedUsage: () => ({
-				primary: { usedPercent: 30, resetAt: 1 },
-				secondary: { usedPercent: 40, resetAt: 2 },
+				primary: { usedPercent: 80, resetAt: 1 },
+				secondary: { usedPercent: 75, resetAt: 2 },
 				fetchedAt: 0,
 			}),
 			refreshUsageForAccount,
@@ -260,7 +260,7 @@ describe("createUsageStatusController", () => {
 
 		expect(setStatus).toHaveBeenCalledWith(
 			"multicodex-usage",
-			expect.stringContaining("5h:70% left"),
+			expect.stringContaining("5h:20% left"),
 		);
 		expect(refreshUsageForAccount).not.toHaveBeenCalled();
 
@@ -277,8 +277,8 @@ describe("createUsageStatusController", () => {
 			onStateChange: () => () => undefined,
 			getActiveAccount: () => ({ email: "a@example.com" }),
 			getCachedUsage: () => ({
-				primary: { usedPercent: 30, resetAt: 1 },
-				secondary: { usedPercent: 40, resetAt: 2 },
+				primary: { usedPercent: 80, resetAt: 1 },
+				secondary: { usedPercent: 75, resetAt: 2 },
 				fetchedAt: 0,
 			}),
 			refreshUsageForAccount,
@@ -307,8 +307,8 @@ describe("createUsageStatusController", () => {
 			[
 				"b@example.com",
 				{
-					primary: { usedPercent: 5, resetAt: 1 },
-					secondary: { usedPercent: 10, resetAt: 2 },
+					primary: { usedPercent: 95, resetAt: 1 },
+					secondary: { usedPercent: 90, resetAt: 2 },
 					fetchedAt: 0,
 				},
 			],
@@ -336,7 +336,7 @@ describe("createUsageStatusController", () => {
 		);
 		expect(setStatus).toHaveBeenLastCalledWith(
 			"multicodex-usage",
-			expect.stringContaining("5h:95% left"),
+			expect.stringContaining("5h:5% left"),
 		);
 	});
 });

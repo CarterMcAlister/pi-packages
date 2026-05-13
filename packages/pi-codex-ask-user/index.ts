@@ -5,6 +5,9 @@
  * and a custom box border instead of manual ANSI box drawing.
  */
 
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { Type, type TUnsafe } from "@sinclair/typebox";
@@ -50,6 +53,11 @@ function StringEnum<const T extends readonly string[]>(
       ...(options?.description ? { description: options.description } : {}),
       ...(options?.default !== undefined ? { default: options.default } : {}),
    });
+}
+
+interface QuestionOption {
+   title: string;
+   description?: string;
 }
 
 type AskOptionInput = QuestionOption | string;
@@ -1449,6 +1457,333 @@ async function askViaDialogs(
    return createSelectionResponse([selected], comment);
 }
 
+interface CodexAskUserSettings {
+   displayMode?: AskDisplayMode;
+   overlayToggleKey?: string | null;
+   commentToggleKey?: string | null;
+   timeoutMs?: number;
+   allowMultiple?: boolean;
+}
+
+interface RequestUserInputOption {
+   label: string;
+   description: string;
+}
+
+interface RequestUserInputQuestion {
+   id: string;
+   header: string;
+   question: string;
+   options: RequestUserInputOption[];
+}
+
+interface RequestUserInputParams {
+   questions: RequestUserInputQuestion[];
+}
+
+const USER_NOTE_PREFIX = "user_note: ";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeCodexAskUserSettings(value: unknown): CodexAskUserSettings {
+   if (!isRecord(value)) return {};
+
+   const settings: CodexAskUserSettings = {};
+   if (value.displayMode === "overlay" || value.displayMode === "inline") {
+      settings.displayMode = value.displayMode;
+   }
+   if (typeof value.overlayToggleKey === "string") {
+      settings.overlayToggleKey = value.overlayToggleKey;
+   } else if (value.overlayToggleKey === null) {
+      settings.overlayToggleKey = null;
+   }
+   if (typeof value.commentToggleKey === "string") {
+      settings.commentToggleKey = value.commentToggleKey;
+   } else if (value.commentToggleKey === null) {
+      settings.commentToggleKey = null;
+   }
+   if (typeof value.timeoutMs === "number" && Number.isFinite(value.timeoutMs) && value.timeoutMs > 0) {
+      settings.timeoutMs = Math.floor(value.timeoutMs);
+   }
+   if (typeof value.allowMultiple === "boolean") {
+      settings.allowMultiple = value.allowMultiple;
+   }
+   return settings;
+}
+
+function readJsonSettings(path: string): Record<string, unknown> {
+   try {
+      const parsed = JSON.parse(readFileSync(path, "utf8"));
+      return isRecord(parsed) ? parsed : {};
+   } catch (_error) {
+      return {};
+   }
+}
+
+function readCodexAskUserSettings(cwd: string): CodexAskUserSettings {
+   const globalSettings = readJsonSettings(join(homedir(), ".pi", "agent", "settings.json"));
+   const projectSettings = readJsonSettings(join(cwd, ".pi", "settings.json"));
+   return {
+      ...normalizeCodexAskUserSettings(globalSettings.piCodexAskUser),
+      ...normalizeCodexAskUserSettings(projectSettings.piCodexAskUser),
+   };
+}
+
+function normalizeRequestUserInput(params: unknown): RequestUserInputParams | string {
+   if (!isRecord(params) || !Array.isArray(params.questions)) {
+      return "request_user_input requires a questions array";
+   }
+   if (params.questions.length < 1 || params.questions.length > 3) {
+      return "request_user_input requires between 1 and 3 questions";
+   }
+
+   const ids = new Set<string>();
+   const questions: RequestUserInputQuestion[] = [];
+   for (const rawQuestion of params.questions) {
+      if (!isRecord(rawQuestion)) return "request_user_input questions must be objects";
+      const { id, header, question, options } = rawQuestion;
+      if (typeof id !== "string" || id.trim() === "") return "request_user_input requires an id for every question";
+      if (ids.has(id)) return "request_user_input question ids must be unique";
+      if (typeof header !== "string" || header.trim() === "") return "request_user_input requires a header for every question";
+      if (typeof question !== "string" || question.trim() === "") return "request_user_input requires question text for every question";
+      if (!Array.isArray(options) || options.length < 2 || options.length > 3) {
+         return "request_user_input requires 2 or 3 options for every question";
+      }
+
+      const labels = new Set<string>();
+      const normalizedOptions: RequestUserInputOption[] = [];
+      for (const rawOption of options) {
+         if (!isRecord(rawOption)) return "request_user_input options must be objects";
+         const { label, description } = rawOption;
+         if (typeof label !== "string" || label.trim() === "" || typeof description !== "string" || description.trim() === "") {
+            return "request_user_input requires label and description for every option";
+         }
+         if (label === FREEFORM_SENTINEL) return `request_user_input option label is reserved: ${FREEFORM_SENTINEL}`;
+         if (labels.has(label)) return "request_user_input option labels must be unique per question";
+         labels.add(label);
+         normalizedOptions.push({ label, description });
+      }
+
+      ids.add(id);
+      questions.push({
+         id,
+         header: header.trim(),
+         question: question.trim(),
+         options: normalizedOptions,
+      });
+   }
+
+   return { questions };
+}
+
+async function executeAskInteraction(
+   pi: ExtensionAPI,
+   params: AskParams,
+   signal: AbortSignal | undefined,
+   onUpdate: any,
+   ctx: any,
+   eventName: string,
+   toolLabel: string,
+): Promise<any> {
+   if (signal?.aborted) {
+      return {
+         content: [{ type: "text", text: "Cancelled" }],
+         details: { question: params.question, options: [], response: null, cancelled: true } as AskToolDetails,
+      };
+   }
+
+   const {
+      question,
+      context,
+      options: rawOptions = [],
+      allowMultiple = false,
+      allowFreeform = true,
+      allowComment = false,
+      displayMode,
+      overlayToggleKey,
+      commentToggleKey,
+      timeout,
+   } = params;
+   const envMode = process.env.PI_ASK_USER_DISPLAY_MODE;
+   const envDisplayMode: AskDisplayMode | undefined =
+      envMode === "overlay" || envMode === "inline" ? envMode : undefined;
+   const effectiveDisplayMode: AskDisplayMode = displayMode ?? envDisplayMode ?? "overlay";
+   const shortcuts: ResolvedAskShortcuts = {
+      overlayToggle: resolveShortcut(
+         overlayToggleKey,
+         process.env.PI_ASK_USER_OVERLAY_TOGGLE_KEY,
+         DEFAULT_OVERLAY_TOGGLE_KEY,
+      ),
+      commentToggle: resolveShortcut(
+         commentToggleKey,
+         process.env.PI_ASK_USER_COMMENT_TOGGLE_KEY,
+         DEFAULT_COMMENT_TOGGLE_KEY,
+      ),
+   };
+   const options = normalizeOptions(rawOptions);
+   const normalizedContext = context?.trim() || undefined;
+
+   if (!ctx.hasUI || !ctx.ui) {
+      const optionText = options.length > 0 ? `\n\nOptions:\n${formatOptionsForMessage(options)}` : "";
+      const freeformHint = allowFreeform ? "\n\nYou can also answer freely." : "";
+      const commentHint = allowComment ? "\n\nAfter choosing an option, you may add an optional comment." : "";
+      const contextText = normalizedContext ? `\n\nContext:\n${normalizedContext}` : "";
+      return {
+         content: [
+            {
+               type: "text",
+               text: `${toolLabel} requires interactive mode. Please answer:\n\n${question}${contextText}${optionText}${freeformHint}${commentHint}`,
+            },
+         ],
+         isError: true,
+         details: { question, context: normalizedContext, options, response: null, cancelled: true } as AskToolDetails,
+      };
+   }
+
+   if (options.length === 0) {
+      const prompt = normalizedContext ? `${question}\n\nContext:\n${normalizedContext}` : question;
+      const answer = await ctx.ui.input(prompt, "Type your answer...", timeout ? { timeout } : undefined);
+      const response = createFreeformResponse(answer);
+
+      if (!response) {
+         return {
+            content: [{ type: "text", text: "User cancelled the question" }],
+            details: { question, context: normalizedContext, options, response: null, cancelled: true } as AskToolDetails,
+         };
+      }
+
+      pi.events.emit(`${eventName}:answered`, { question, context: normalizedContext, response });
+      return {
+         content: [{ type: "text", text: `User answered: ${formatResponseSummary(response)}` }],
+         details: { question, context: normalizedContext, options, response, cancelled: false } as AskToolDetails,
+      };
+   }
+
+   onUpdate?.({
+      content: [{ type: "text", text: "Waiting for user input..." }],
+      details: { question, context: normalizedContext, options, response: null, cancelled: false },
+   });
+
+   let result: AskUIResult | null;
+   let overlayHandle: OverlayHandle | undefined;
+   let removeOverlayInputListener: (() => void) | undefined;
+   let hasAnnouncedHide = false;
+   try {
+      const customFactory = (tui: TUI, theme: Theme, keybindings: KeybindingsManager, done: (result: AskUIResult | null) => void) => {
+         if (signal) {
+            const onAbort = () => done(null);
+            signal.addEventListener("abort", onAbort, { once: true });
+         }
+
+         if (timeout && timeout > 0) {
+            setTimeout(() => done(null), timeout);
+         }
+
+         return new AskComponent(
+            question,
+            normalizedContext,
+            options,
+            allowMultiple,
+            allowFreeform,
+            allowComment,
+            effectiveDisplayMode,
+            tui,
+            theme,
+            keybindings,
+            shortcuts,
+            done,
+         );
+      };
+
+      const overlayToggle = shortcuts.overlayToggle;
+      if (
+         effectiveDisplayMode === "overlay"
+         && !overlayToggle.disabled
+         && typeof ctx.ui.onTerminalInput === "function"
+      ) {
+         removeOverlayInputListener = ctx.ui.onTerminalInput((data: string) => {
+            if (!overlayToggle.matches(data) || !overlayHandle) return undefined;
+            const nextHidden = !overlayHandle.isHidden();
+            overlayHandle.setHidden(nextHidden);
+            if (nextHidden && !hasAnnouncedHide) {
+               hasAnnouncedHide = true;
+               ctx.ui.notify?.(`${toolLabel} hidden — press ${overlayToggle.spec} to reopen`, "info");
+            }
+            return { consume: true };
+         });
+      }
+
+      const customResult = await ctx.ui.custom(
+         customFactory,
+         buildCustomUIOptions(effectiveDisplayMode, (handle) => {
+            overlayHandle = handle;
+         }),
+      ) as AskUIResult | null | undefined;
+
+      if (customResult !== undefined) {
+         result = customResult;
+      } else {
+         result = await askViaDialogs(ctx.ui, question, normalizedContext, options, allowMultiple, allowFreeform, allowComment, timeout);
+      }
+   } catch (error) {
+      const message = error instanceof Error ? `${error.message}\n${error.stack ?? ""}` : String(error);
+      return {
+         content: [{ type: "text", text: `${toolLabel} failed: ${message}` }],
+         isError: true,
+         details: { error: message },
+      };
+   } finally {
+      removeOverlayInputListener?.();
+   }
+
+   if (result === null) {
+      pi.events.emit(`${eventName}:cancelled`, { question, context: normalizedContext, options });
+      return {
+         content: [{ type: "text", text: "User cancelled the question" }],
+         details: { question, context: normalizedContext, options, response: null, cancelled: true } as AskToolDetails,
+      };
+   }
+
+   pi.events.emit(`${eventName}:answered`, { question, context: normalizedContext, response: result });
+   return {
+      content: [{ type: "text", text: `User answered: ${formatResponseSummary(result)}` }],
+      details: { question, context: normalizedContext, options, response: result, cancelled: false } as AskToolDetails,
+   };
+}
+
+function toCodexAnswers(response: AskResponse): string[] {
+   if (response.kind === "freeform") return [response.text];
+   const answers = [...response.selections];
+   if (response.comment) answers.push(`${USER_NOTE_PREFIX}${response.comment}`);
+   return answers;
+}
+
+const requestUserInputOptionSchema = Type.Object({
+   label: Type.String({ description: "Short option label to return when selected" }),
+   description: Type.String({ description: "Longer option explanation shown to the user" }),
+});
+
+const requestUserInputQuestionSchema = Type.Object({
+   id: Type.String({ description: "Stable identifier for this question" }),
+   header: Type.String({ description: "Short context header shown above the question" }),
+   question: Type.String({ description: "Question to ask the user" }),
+   options: Type.Array(requestUserInputOptionSchema, {
+      minItems: 2,
+      maxItems: 3,
+      description: "Two or three options for the user to choose from",
+   }),
+});
+
+const requestUserInputSchema = Type.Object({
+   questions: Type.Array(requestUserInputQuestionSchema, {
+      minItems: 1,
+      maxItems: 3,
+      description: "One to three focused questions to ask sequentially",
+   }),
+});
+
 export default function(pi: ExtensionAPI) {
    pi.registerTool({
       name: "ask_user",
@@ -1766,6 +2101,110 @@ export default function(pi: ExtensionAPI) {
          }
 
          return new Text(text, 0, 0);
+      },
+   });
+
+   pi.registerTool({
+      name: "request_user_input",
+      label: "Request User Input",
+      description:
+         "Ask the user one to three Codex-style multiple-choice questions and return answers keyed by question id. Preserves the ask_user UI while matching Codex request_user_input response shape.",
+      promptSnippet:
+         "Use request_user_input when a Codex-compatible workflow requires structured user choices keyed by question id",
+      promptGuidelines: [
+         "Ask one to three focused questions with 2-3 options each.",
+         "Each question must include id, header, question, and options with label and description.",
+         "Use this only when the Codex request_user_input response shape is required; otherwise prefer ask_user.",
+      ],
+      parameters: requestUserInputSchema,
+
+      async execute(_toolCallId, params, signal, onUpdate, ctx) {
+         const normalized = normalizeRequestUserInput(params);
+         if (typeof normalized === "string") {
+            return {
+               content: [{ type: "text", text: normalized }],
+               isError: true,
+            };
+         }
+
+         const settings = readCodexAskUserSettings(ctx.cwd ?? process.cwd());
+         const answers: Record<string, { answers: string[] }> = {};
+
+         if (!ctx.hasUI || !ctx.ui) {
+            return {
+               content: [{ type: "text", text: "request_user_input requires interactive mode" }],
+               isError: true,
+            };
+         }
+
+         ctx.ui.notify?.("request_user_input is waiting for your input", "info");
+         pi.events.emit("request_user_input:waiting", { questions: normalized.questions });
+
+         for (const question of normalized.questions) {
+            const result = await executeAskInteraction(
+               pi,
+               {
+                  question: question.question,
+                  context: question.header,
+                  options: question.options.map((option) => ({
+                     title: option.label,
+                     description: option.description,
+                  })),
+                  allowMultiple: settings.allowMultiple ?? false,
+                  allowFreeform: true,
+                  allowComment: true,
+                  displayMode: settings.displayMode,
+                  overlayToggleKey: settings.overlayToggleKey,
+                  commentToggleKey: settings.commentToggleKey,
+                  timeout: settings.timeoutMs,
+               },
+               signal,
+               onUpdate,
+               ctx,
+               "request_user_input",
+               "request_user_input",
+            );
+
+            const details = result.details as (AskToolDetails & { error?: string }) | undefined;
+            if (result.isError || details?.error) return result;
+            if (!details || details.cancelled || !details.response) {
+               pi.events.emit("request_user_input:cancelled", { questionId: question.id });
+               return {
+                  content: [{ type: "text", text: "User cancelled the question" }],
+                  details: { answers, cancelled: true },
+               };
+            }
+
+            answers[question.id] = { answers: toCodexAnswers(details.response) };
+         }
+
+         pi.events.emit("request_user_input:answered", { answers });
+         return {
+            content: [{ type: "text", text: JSON.stringify({ answers }) }],
+            details: { answers, cancelled: false },
+         };
+      },
+
+      renderCall(args, theme) {
+         const questions = Array.isArray(args.questions) ? args.questions : [];
+         const label = questions.length === 1 ? "question" : "questions";
+         return new Text(
+            `${theme.fg("toolTitle", theme.bold("request_user_input "))}${theme.fg("muted", `${questions.length} ${label}`)}`,
+            0,
+            0,
+         );
+      },
+
+      renderResult(result, options, theme) {
+         if (options.isPartial) {
+            return new Text(theme.fg("muted", "Waiting for user input..."), 0, 0);
+         }
+         if ((result as any).isError) {
+            const message = result.content?.find((part) => part.type === "text")?.text ?? "request_user_input failed";
+            return new Text(theme.fg("error", `✗ ${message}`), 0, 0);
+         }
+         const text = result.content?.find((part) => part.type === "text")?.text ?? "{}";
+         return new Text(theme.fg("success", `✓ ${text}`), 0, 0);
       },
    });
 }

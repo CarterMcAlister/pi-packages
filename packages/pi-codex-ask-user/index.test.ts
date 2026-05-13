@@ -123,6 +123,7 @@ beforeAll(() => {
 });
 
 type RegisteredTool = {
+   name?: string;
    execute: (...args: any[]) => Promise<any>;
    renderResult: (result: any, options: any, theme: any) => any;
 };
@@ -139,13 +140,15 @@ function stubEnv(key: string, value: string): void {
    });
 }
 
-async function setupTool(): Promise<RegisteredTool> {
+async function setupTools(): Promise<Record<string, RegisteredTool>> {
    const { default: askUserExtension } = await import("./index");
-   let registeredTool: RegisteredTool | undefined;
+   const registeredTools: Record<string, RegisteredTool> = {};
    emittedEvents = [];
    const pi = {
       registerTool(tool: RegisteredTool) {
-         registeredTool = tool;
+         if (tool.name) {
+            registeredTools[tool.name] = tool;
+         }
       },
       events: {
          emit(name: string, payload: any) {
@@ -155,6 +158,13 @@ async function setupTool(): Promise<RegisteredTool> {
    } as any;
 
    askUserExtension(pi);
+
+   return registeredTools;
+}
+
+async function setupTool(): Promise<RegisteredTool> {
+   const registeredTools = await setupTools();
+   const registeredTool = registeredTools.ask_user;
 
    if (!registeredTool) {
       throw new Error("Tool was not registered");
@@ -1910,6 +1920,80 @@ describe("ask_user", () => {
          );
 
          expect(capturedOpts).toEqual({ timeout: 5000 });
+      });
+   });
+});
+
+describe("request_user_input", () => {
+   const question = {
+      id: "deploy_target",
+      header: "Deployment target",
+      question: "Where should we deploy?",
+      options: [
+         { label: "Staging", description: "Safe preview environment" },
+         { label: "Production", description: "Customer-facing environment" },
+      ],
+   };
+
+   test("returns Codex answers keyed by question id", async () => {
+      const tool = (await setupTools()).request_user_input;
+      expect(tool).toBeDefined();
+
+      const result = await tool.execute(
+         "tool-call-id",
+         { questions: [question] },
+         undefined,
+         undefined,
+         {
+            cwd: process.cwd(),
+            hasUI: true,
+            ui: {
+               notify: () => { },
+               custom: async () => ({
+                  kind: "selection",
+                  selections: ["Production"],
+                  comment: "Need rollback ready.",
+               }),
+               select: async () => undefined,
+               input: async () => undefined,
+            },
+         },
+      );
+
+      expect(JSON.parse(result.content[0].text)).toEqual({
+         answers: {
+            deploy_target: {
+               answers: ["Production", "user_note: Need rollback ready."],
+            },
+         },
+      });
+      expect(emittedEvents.map((event) => event.name)).toContain("request_user_input:answered");
+   });
+
+   test("keeps freeform responses in the Codex answer shape", async () => {
+      const tool = (await setupTools()).request_user_input;
+
+      const result = await tool.execute(
+         "tool-call-id",
+         { questions: [question] },
+         undefined,
+         undefined,
+         {
+            cwd: process.cwd(),
+            hasUI: true,
+            ui: {
+               notify: () => { },
+               custom: async () => ({ kind: "freeform", text: "Use canary first" }),
+               select: async () => undefined,
+               input: async () => undefined,
+            },
+         },
+      );
+
+      expect(JSON.parse(result.content[0].text)).toEqual({
+         answers: {
+            deploy_target: { answers: ["Use canary first"] },
+         },
       });
    });
 });

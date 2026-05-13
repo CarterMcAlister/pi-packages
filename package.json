@@ -13,7 +13,8 @@
     "lint": "bunx @biomejs/biome check .",
     "typecheck": "bunx tsc -p tsconfig.json --noEmit",
     "test": "bun run --workspaces --if-present test",
-    "check": "bun run lint && bun run typecheck && bun run test",
+    "validate:readme": "node scripts/validate-readme-packages.mjs",
+    "check": "bun run lint && bun run typecheck && bun run validate:readme && bun run test",
     "check:ci": "bun run check"
   },
   "keywords": [
@@ -34,20 +35,18 @@
   "pi": {
     "extensions": [
       "./packages/pi-auto-name/src/index.ts",
-      "./packages/pi-agent-view/src/index.ts",
-      "./packages/pi-powerline-footer/index.ts",
-      "./packages/pi-multicodex/index.ts",
-      "./packages/pi-lens/index.ts",
-      "./packages/pi-skillpacks/src/skillpack-session-loader.ts",
-      "./packages/pi-worktrunk/src/index.ts",
-      "./packages/pi-profiles/src/index.ts",
-      "./packages/pi-protected-files/src/index.ts",
-      "./packages/pi-powerline-footer/index.ts",
-      "./packages/pi-codex-tools/src/index.ts",
+      "./packages/pi-codex-ask-user/index.ts",
       "./packages/pi-codex-image-gen/src/index.ts",
       "./packages/pi-codex-subagents/src/index.ts",
       "./packages/pi-codex-tasks/src/index.ts",
-      "./packages/pi-codex-ask-user/src/index.ts",
+      "./packages/pi-codex-tools/src/index.ts",
+      "./packages/pi-lens/index.ts",
+      "./packages/pi-multicodex/index.ts",
+      "./packages/pi-powerline-footer/index.ts",
+      "./packages/pi-profiles/src/index.ts",
+      "./packages/pi-protected-files/src/index.ts",
+      "./packages/pi-skillpacks/src/skillpack-session-loader.ts",
+      "./packages/pi-worktrunk/src/index.ts",
       "./packages/pi-utils/src/context.ts",
       "./packages/pi-utils/src/files.ts",
       "./packages/pi-utils/src/loop.ts",
@@ -57,22 +56,15 @@
       "./packages/pi-utils/src/pi-review-loop/index.ts"
     ],
     "skills": [
+      "./packages/pi-codex-ask-user/skills",
       "./packages/pi-lens/skills"
     ]
-  },
-  "dependencies": {
-    "@aliou/pi-utils-settings": "0.13.0",
-    "@aliou/sh": "0.1.0",
-    "@iarna/toml": "2.2.5",
-    "@zenobius/pi-extension-config": "0.2.0",
-    "typebox": "1.0.81"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.13",
     "@earendil-works/pi-ai": "0.74.0",
     "@earendil-works/pi-coding-agent": "0.74.0",
     "@earendil-works/pi-tui": "0.74.0",
-    "@sinclair/typebox": "0.34.0",
     "@types/node": "22.0.0",
     "bun-types": "latest",
     "lefthook": "2.1.6",

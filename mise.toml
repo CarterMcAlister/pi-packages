@@ -3,29 +3,35 @@ bun = "1.3.12"
 
 [env]
 _.path = [
+  # Keep the global Pi CLI ahead of the workspace shim installed for tests/dev.
+  "{{env.HOME}}/.local/share/mise/installs/npm-earendil-works-pi-coding-agent/latest/bin",
   "{{config_root}}/node_modules/.bin",
 ]
 
+[tasks.install]
+description = "Install dependencies for the root workspace and fork packages"
+run = "node scripts/run-package-task.mjs install"
+
 [tasks.setup]
-description = "Install workspace dependencies with Bun"
-run = "bun install"
+description = "Install dependencies for the root workspace and fork packages"
+depends = ["install"]
 
 [tasks.format]
 description = "Format and apply safe fixes with Biome"
 run = "bun run format"
 
 [tasks.lint]
-description = "Run Biome checks"
-run = "bun run lint"
+description = "Run lint checks across monorepo and fork packages"
+run = "node scripts/run-package-task.mjs lint"
 
 [tasks.typecheck]
-description = "Type-check the workspace"
-run = "bun run typecheck"
+description = "Type-check monorepo and fork packages"
+run = "node scripts/run-package-task.mjs typecheck"
 
 [tasks.test]
-description = "Run package tests with Bun"
-run = "bun run test"
+description = "Run tests across monorepo and fork packages"
+run = "node scripts/run-package-task.mjs test"
 
 [tasks.check]
-description = "Run lint, typecheck, and tests"
-run = "bun run check"
+description = "Run lint, typecheck, and tests across monorepo and fork packages"
+run = "node scripts/run-package-task.mjs check"

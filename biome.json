@@ -7,7 +7,11 @@
       "!reference",
       "!**/dist",
       "!**/coverage",
-      "!**/node_modules"
+      "!**/node_modules",
+      "!packages/pi-multicodex",
+      "!packages/pi-codex-ask-user",
+      "!packages/pi-powerline-footer",
+      "!packages/pi-lens"
     ]
   },
   "formatter": {

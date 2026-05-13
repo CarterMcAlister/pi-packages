@@ -10,5 +10,11 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["packages/**/*.ts", "scripts/**/*.ts"]
+  "include": ["packages/**/*.ts", "scripts/**/*.ts"],
+  "exclude": [
+    "packages/pi-multicodex/**",
+    "packages/pi-codex-ask-user/**",
+    "packages/pi-powerline-footer/**",
+    "packages/pi-lens/**"
+  ]
 }

@@ -1,9 +1,8 @@
 name: Release packages
 
+# Temporarily disabled: remove the job-level false guard and restore the
+# main-branch push trigger when package publishing should resume.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       tag:
@@ -19,7 +18,7 @@ on:
 
 jobs:
   release:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ false && github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

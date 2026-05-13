@@ -2,9 +2,9 @@
   <img src="banner.png" alt="pi-powerline-footer" width="1100">
 </p>
 
-# @carter-mcalister/pi-powerline-footer
+# pi-powerline-footer
 
-Customizes the default Pi editor with a powerline-style status bar, welcome overlay, and AI-generated "vibes" for loading messages. Inspired by [Powerlevel10k](https://github.com/romkatv/powerlevel10k) and [oh-my-pi](https://github.com/can1357/oh-my-pi).
+Customizes the default [pi](https://github.com/badlogic/pi-mono) editor with a powerline-style status bar, welcome overlay, and AI-generated "vibes" for loading messages. Inspired by [Powerlevel10k](https://github.com/romkatv/powerlevel10k) and [oh-my-pi](https://github.com/can1357/oh-my-pi).
 
 <img width="1261" height="817" alt="Image" src="https://github.com/user-attachments/assets/4cc43320-3fb8-4503-b857-69dffa7028f2" />
 
@@ -37,22 +37,20 @@ Customizes the default Pi editor with a powerline-style status bar, welcome over
 ## Installation
 
 ```bash
-pi install npm:@carter-mcalister/pi-powerline-footer
+pi install npm:pi-powerline-footer
 ```
 
 Restart pi to activate.
 
 ## Usage
 
-Activates automatically. Toggle with `/powerline`, switch presets with `/powerline <name>`, fixed-editor mode with `/powerline fixed-editor on|off|toggle`, cost display with `/powerline cost on|off|toggle`, cache-read display with `/powerline cache-read on|off|toggle`, and wheel mode with `/powerline mouse-scroll on|off|toggle`.
+Activates automatically. Toggle with `/powerline`, switch presets with `/powerline <name>`, fixed-editor mode with `/powerline fixed-editor on|off|toggle`, and wheel mode with `/powerline mouse-scroll on|off|toggle`.
 
 Fixed editor is on by default.
 
 - `/powerline fixed-editor off` — return to Pi’s regular scrolling layout
 - `/powerline fixed-editor on` — re-enable the fixed editor
 - `/powerline fixed-editor toggle` — switch between the two
-- `/powerline cost off` — hide cost/subscription status segments from presets
-- `/powerline cache-read off` — hide cached-input token status segments from presets
 
 You can also set it in `~/.pi/agent/settings.json` or project-local `.pi/settings.json`:
 
@@ -60,16 +58,12 @@ You can also set it in `~/.pi/agent/settings.json` or project-local `.pi/setting
 {
   "powerline": {
     "preset": "default",
-    "fixedEditor": false,
-    "showCost": false,
-    "showCacheRead": false,
-    "workingVibes": false,
-    "welcomeOverlay": false
+    "fixedEditor": false
   }
 }
 ```
 
-Use `"fixedEditor": true` to enable it again. Add `"mouseScroll": false` if you want native terminal selection instead of fixed-editor mouse handling. Set `"showCost": false` to hide cost/subscription status segments from presets, or `"showCacheRead": false` to hide cached-input token status segments. Set `"workingVibes": false` to disable Working Vibes initialization and AI generation, or `"welcomeOverlay": false` to disable the startup welcome overlay/header.
+Use `"fixedEditor": true` to enable it again. Add `"mouseScroll": false` if you want native terminal selection instead of fixed-editor mouse handling.
 
 | Preset | Description |
 |--------|-------------|
@@ -147,7 +141,7 @@ While bash mode is active:
 - `escape` exits bash mode and returns to normal prompt mode
 - `ctrl+c` interrupts the active shell job before falling back to normal pi behavior
 
-The managed shell is persistent for the current pi session. Command output appears in a transcript below the editor, and shell cwd changes are reflected in the footer path, `shell_mode` segment, and normal agent mode after you leave bash mode. If the bash prompt is empty, bash mode shows the newest successful project-history ghost suggestion immediately when one exists, including right after mode entry or after the prompt is cleared again. One-off `!command` and `!!command` prompts reuse the same shell prediction pipeline, including ghost text. Mode entry stays quiet: there is no automatic or manual dropdown completion surface, and ghost suggestions do not run shell-native completion probes.
+The managed shell is persistent for the current pi session. Command output appears in a transcript below the editor, and shell cwd changes are reflected in the footer path and `shell_mode` segment. If the bash prompt is empty, bash mode shows the newest successful project-history ghost suggestion immediately when one exists, including right after mode entry or after the prompt is cleared again. One-off `!command` and `!!command` prompts reuse the same shell prediction pipeline, including ghost text. Mode entry stays quiet: there is no automatic or manual dropdown completion surface, and ghost suggestions do not run shell-native completion probes.
 
 ### Bash mode configuration
 
@@ -200,14 +194,12 @@ Selecting an entry inserts it into the editor. If the editor already has text, y
 - `cmd+down` — scroll the fixed-editor chat viewport down
 - `cmd+shift+up` — move the editor cursor to the start of the first line
 - `cmd+shift+down` — move the editor cursor to the end of the last line
-- `option+shift+left/right` — highlight the previous/next word in the editor
 - `ctrl+shift+u` — jump the fixed-editor chat viewport to the previous user message
 - `ctrl+shift+i` — jump the fixed-editor chat viewport to the next user message
 - `ctrl+alt+,` — jump the fixed-editor chat viewport to the previous LLM message
 - `ctrl+alt+.` — jump the fixed-editor chat viewport to the next LLM message
 - `ctrl+shift+g` — jump the fixed-editor chat viewport to the bottom
-
-Copy/cut actions do not modify stash state or stash history. Chat jumps require fixed-editor mode because they use its app-owned scroll viewport. Submitting editor text also returns that viewport to the bottom so new output stays in view.
+Copy/cut actions do not modify stash state or stash history. Dragging files, folders, images, or screenshots from Finder into the custom editor inserts their path strings. Chat jumps require fixed-editor mode because they use its app-owned scroll viewport. Submitting editor text also returns that viewport to the bottom so new output stays in view.
 
 ### Shortcut configuration
 

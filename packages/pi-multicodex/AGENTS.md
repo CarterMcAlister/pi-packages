@@ -10,16 +10,16 @@ The current codebase is organized around these responsibilities:
 
 - `provider.ts`
   - overrides the normal `openai-codex` provider path
-  - mirrors Codex models through `pi-provider-utils/providers`
+  - mirrors Codex models through `@victor-software-house/pi-provider-utils/providers`
   - installs the managed stream wrapper
 - `stream-wrapper.ts`
   - account selection, retry, and quota-rotation path during streaming
-  - uses shared stream and abort primitives from `pi-provider-utils/streams`
+  - uses shared stream and abort primitives from `@victor-software-house/pi-provider-utils/streams`
 - `account-manager.ts`
   - managed account storage, token refresh, usage cache, activation logic, auth import sync
 - `auth.ts`
   - reads pi's `~/.pi/agent/auth.json` and extracts importable `openai-codex` OAuth state
-  - resolves agent paths through `pi-provider-utils/agent-paths`
+  - resolves agent paths through `@victor-software-house/pi-provider-utils/agent-paths`
 - `status.ts`
   - footer rendering with severity-based color tiers, footer settings persistence, settings panel with live preview, and footer refresh behavior
   - uses shared agent-path JSON helpers for `settings.json` access
@@ -29,7 +29,7 @@ The current codebase is organized around these responsibilities:
   - session-start and session-switch refresh behavior
 - `storage.ts`
   - persisted account state in `~/.pi/agent/codex-accounts.json`
-  - resolves storage path through `pi-provider-utils/agent-paths`
+  - resolves storage path through `@victor-software-house/pi-provider-utils/agent-paths`
 - `selection.ts`
   - account selection logic (untouched preference, earliest weekly reset, random fallback)
 - `usage.ts` / `usage-client.ts`
@@ -56,7 +56,7 @@ The current codebase is organized around these responsibilities:
   - `/multicodex reset [manual|quota|all]`
   - `/multicodex help`
 - Footer settings are persisted in `~/.pi/agent/settings.json` under `pi-multicodex`.
-- Shared provider mirroring, stream primitives, and agent-path helpers come from `pi-provider-utils`.
+- Shared provider mirroring, stream primitives, and agent-path helpers come from `@victor-software-house/pi-provider-utils`.
 - Rotation criteria are still hard-coded.
 
 ## Active roadmap priorities
@@ -87,13 +87,13 @@ When continuing work, prioritize these items before expanding scope:
 ## Packaging rules
 
 - Core pi packages must stay aligned with pi package docs.
-- Keep `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, and `@earendil-works/pi-tui` in `peerDependencies` and `devDependencies` as needed for local development.
+- Keep `@mariozechner/pi-ai`, `@mariozechner/pi-coding-agent`, and `@mariozechner/pi-tui` in `peerDependencies` and `devDependencies` as needed for local development.
 - Do not move pi core packages into normal runtime `dependencies` unless pi package docs require it.
 - Keep the published tarball limited to runtime files only.
 
 ## Type safety and architecture
 
-- Use public exports from `@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent`.
+- Use public exports from `@mariozechner/pi-ai` and `@mariozechner/pi-coding-agent`.
 - Prefer small focused modules with explicit exports over large shared files.
 - Keep durable config, runtime status, and UI wiring separate.
 - Normalize config on load and save.
@@ -119,10 +119,10 @@ npm pack --dry-run
 ## Hook workflow
 
 - Use `lefthook` for git hooks.
-- `bun install` should install dependencies and run `lefthook install` from the repo root.
-- Pre-push validation runs through the repo check flow.
+- `mise run install` should install dependencies and run `lefthook install`.
+- Pre-push validation runs through `mise run pre-push`.
 - Keep pre-push checks aligned with CI:
-  - `bun run --filter @carter-mcalister/pi-multicodex check`
+  - `pnpm check`
   - `npm pack --dry-run`
 
 ## Release workflow
@@ -131,11 +131,11 @@ npm pack --dry-run
 - Normal releases happen from merges to `main` through `.github/workflows/publish.yml`.
 - Enforce Conventional Commits with commitlint locally and in CI.
 - Use `lefthook` for the local `commit-msg` hook.
-- Use the workspace package check plus `npm pack --dry-run` for local release verification when needed.
+- Use `pnpm release:dry` for local release verification when needed.
 - Do not use local `npm publish` for routine releases.
 - Keep the npm trusted publisher mapping aligned with:
-  - package: `@carter-mcalister/pi-multicodex`
-  - repository: `CarterMcAlister/pi-packages`
+  - package: `@victor-software-house/pi-multicodex`
+  - repository: `victor-software-house/pi-multicodex`
   - workflow file: `.github/workflows/publish.yml`
 
 ## Commit workflow

@@ -1,77 +1,53 @@
-// biome-ignore-all lint/suspicious/noControlCharactersInRegex: Theme sanitization intentionally strips ANSI escape sequences.
-import { visibleWidth } from '@earendil-works/pi-tui'
-import type {
-  ColorValue,
-  CustomItemPosition,
-  CustomStatusItem,
-  PresetDef,
-  StatusLinePreset,
-  StatusLineSegmentId,
-} from './types.ts'
+import { visibleWidth } from "@earendil-works/pi-tui";
+import type { ColorValue, CustomItemPosition, CustomStatusItem, PresetDef, StatusLinePreset, StatusLineSegmentId } from "./types.ts";
 
 export interface PowerlineConfig {
-  preset: StatusLinePreset
-  customItems: CustomStatusItem[]
-  mouseScroll: boolean
-  fixedEditor: boolean
-  workingVibes: boolean
-  welcomeOverlay: boolean
-  showCost: boolean
-  showCacheRead: boolean
+  preset: StatusLinePreset;
+  customItems: CustomStatusItem[];
+  mouseScroll: boolean;
+  fixedEditor: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function normalizePreset(
-  value: unknown,
-  presets: readonly StatusLinePreset[],
-): StatusLinePreset | null {
-  if (typeof value !== 'string') return null
-  const normalized = value.trim().toLowerCase()
-  return (presets as readonly string[]).includes(normalized)
-    ? (normalized as StatusLinePreset)
-    : null
+function normalizePreset(value: unknown, presets: readonly StatusLinePreset[]): StatusLinePreset | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return (presets as readonly string[]).includes(normalized) ? (normalized as StatusLinePreset) : null;
 }
 
 function normalizeCustomItemId(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const normalized = value.trim()
-  if (!normalized) return null
-  return /^[a-zA-Z0-9_-]+$/.test(normalized) ? normalized : null
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  return /^[a-zA-Z0-9_-]+$/.test(normalized) ? normalized : null;
 }
 
 function normalizeCustomItemPosition(value: unknown): CustomItemPosition {
-  if (value === 'left' || value === 'right' || value === 'secondary')
-    return value
-  return 'right'
+  if (value === "left" || value === "right" || value === "secondary") return value;
+  return "right";
 }
 
 function normalizeCustomColor(value: unknown): ColorValue | undefined {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim()
-  return normalized ? (normalized as ColorValue) : undefined
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized ? (normalized as ColorValue) : undefined;
 }
 
 function normalizeCustomPrefix(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim()
-  return normalized ? normalized : undefined
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized ? normalized : undefined;
 }
 
-function normalizeCustomStatusItem(
-  raw: unknown,
-  idOverride?: string,
-): CustomStatusItem | null {
-  if (!isRecord(raw)) return null
-  const id = normalizeCustomItemId(idOverride ?? raw.id)
-  if (!id) return null
+function normalizeCustomStatusItem(raw: unknown, idOverride?: string): CustomStatusItem | null {
+  if (!isRecord(raw)) return null;
+  const id = normalizeCustomItemId(idOverride ?? raw.id);
+  if (!id) return null;
 
-  const statusKey =
-    typeof raw.statusKey === 'string' && raw.statusKey.trim()
-      ? raw.statusKey.trim()
-      : id
+  const statusKey = typeof raw.statusKey === "string" && raw.statusKey.trim() ? raw.statusKey.trim() : id;
 
   return {
     id,
@@ -81,163 +57,124 @@ function normalizeCustomStatusItem(
     prefix: normalizeCustomPrefix(raw.prefix),
     hideWhenMissing: raw.hideWhenMissing !== false,
     excludeFromExtensionStatuses: raw.excludeFromExtensionStatuses !== false,
-  }
+  };
 }
 
 function normalizeCustomItems(raw: unknown): CustomStatusItem[] {
-  const normalized: CustomStatusItem[] = []
+  const normalized: CustomStatusItem[] = [];
 
   if (Array.isArray(raw)) {
     for (const entry of raw) {
-      const item = normalizeCustomStatusItem(entry)
-      if (item) normalized.push(item)
+      const item = normalizeCustomStatusItem(entry);
+      if (item) normalized.push(item);
     }
   } else if (isRecord(raw)) {
     for (const [id, entry] of Object.entries(raw)) {
-      const item = normalizeCustomStatusItem(entry, id)
-      if (item) normalized.push(item)
+      const item = normalizeCustomStatusItem(entry, id);
+      if (item) normalized.push(item);
     }
   }
 
-  const deduped = new Map<string, CustomStatusItem>()
+  const deduped = new Map<string, CustomStatusItem>();
   for (const item of normalized) {
-    deduped.set(item.id, item)
+    deduped.set(item.id, item);
   }
 
-  return [...deduped.values()]
+  return [...deduped.values()];
 }
 
-export function parsePowerlineConfig(
-  value: unknown,
-  presets: readonly StatusLinePreset[],
-): PowerlineConfig {
-  const defaultConfig: PowerlineConfig = {
-    preset: 'default',
-    customItems: [],
-    mouseScroll: true,
-    fixedEditor: true,
-    workingVibes: true,
-    welcomeOverlay: true,
-    showCost: true,
-    showCacheRead: true,
-  }
+export function parsePowerlineConfig(value: unknown, presets: readonly StatusLinePreset[]): PowerlineConfig {
+  const defaultConfig: PowerlineConfig = { preset: "default", customItems: [], mouseScroll: true, fixedEditor: true };
 
-  const directPreset = normalizePreset(value, presets)
-  if (directPreset) return { ...defaultConfig, preset: directPreset }
+  const directPreset = normalizePreset(value, presets);
+  if (directPreset) return { ...defaultConfig, preset: directPreset };
 
-  if (!isRecord(value)) return defaultConfig
+  if (!isRecord(value)) return defaultConfig;
 
   return {
     preset: normalizePreset(value.preset, presets) ?? defaultConfig.preset,
     customItems: normalizeCustomItems(value.customItems),
     mouseScroll: value.mouseScroll !== false,
     fixedEditor: value.fixedEditor !== false,
-    workingVibes: value.workingVibes !== false,
-    welcomeOverlay: value.welcomeOverlay !== false,
-    showCost: value.showCost !== false,
-    showCacheRead: value.showCacheRead !== false,
-  }
+  };
 }
 
-export function mergeSegmentsWithCustomItems(
-  presetDef: PresetDef,
-  customItems: readonly CustomStatusItem[],
-): {
-  leftSegments: StatusLineSegmentId[]
-  rightSegments: StatusLineSegmentId[]
-  secondarySegments: StatusLineSegmentId[]
+export function mergeSegmentsWithCustomItems(presetDef: PresetDef, customItems: readonly CustomStatusItem[]): {
+  leftSegments: StatusLineSegmentId[];
+  rightSegments: StatusLineSegmentId[];
+  secondarySegments: StatusLineSegmentId[];
 } {
-  const left: StatusLineSegmentId[] = [...presetDef.leftSegments]
-  const right: StatusLineSegmentId[] = [...presetDef.rightSegments]
-  const secondary: StatusLineSegmentId[] = [
-    ...(presetDef.secondarySegments ?? []),
-  ]
+  const left: StatusLineSegmentId[] = [...presetDef.leftSegments];
+  const right: StatusLineSegmentId[] = [...presetDef.rightSegments];
+  const secondary: StatusLineSegmentId[] = [...(presetDef.secondarySegments ?? [])];
 
   for (const item of customItems) {
-    const segmentId: StatusLineSegmentId = `custom:${item.id}`
-    if (item.position === 'left') left.push(segmentId)
-    else if (item.position === 'secondary') secondary.push(segmentId)
-    else right.push(segmentId)
+    const segmentId: StatusLineSegmentId = `custom:${item.id}`;
+    if (item.position === "left") left.push(segmentId);
+    else if (item.position === "secondary") secondary.push(segmentId);
+    else right.push(segmentId);
   }
 
-  return {
-    leftSegments: left,
-    rightSegments: right,
-    secondarySegments: secondary,
-  }
+  return { leftSegments: left, rightSegments: right, secondarySegments: secondary };
 }
 
-export function nextPowerlineSettingWithPreset(
-  existingPowerlineSetting: unknown,
-  preset: StatusLinePreset,
-): unknown {
+export function nextPowerlineSettingWithPreset(existingPowerlineSetting: unknown, preset: StatusLinePreset): unknown {
   if (!isRecord(existingPowerlineSetting)) {
-    return preset
+    return preset;
   }
-  return { ...existingPowerlineSetting, preset }
+  return { ...existingPowerlineSetting, preset };
 }
 
 export function nextPowerlineSettingWithOptions(
   existingPowerlineSetting: unknown,
-  updates: Partial<
-    Pick<
-      PowerlineConfig,
-      'mouseScroll' | 'fixedEditor' | 'showCost' | 'showCacheRead'
-    >
-  >,
+  updates: Partial<Pick<PowerlineConfig, "mouseScroll" | "fixedEditor">>,
   currentPreset: StatusLinePreset,
 ): unknown {
   if (!isRecord(existingPowerlineSetting)) {
-    return { preset: currentPreset, ...updates }
+    return { preset: currentPreset, ...updates };
   }
-  return { ...existingPowerlineSetting, ...updates }
+  return { ...existingPowerlineSetting, ...updates };
 }
 
-export function collectHiddenExtensionStatusKeys(
-  customItems: readonly CustomStatusItem[],
-): Set<string> {
-  const hidden = new Set<string>()
+export function collectHiddenExtensionStatusKeys(customItems: readonly CustomStatusItem[]): Set<string> {
+  const hidden = new Set<string>();
   for (const item of customItems) {
-    if (item.excludeFromExtensionStatuses) hidden.add(item.statusKey)
+    if (item.excludeFromExtensionStatuses) hidden.add(item.statusKey);
   }
-  return hidden
+  return hidden;
 }
 
 export function isNotificationExtensionStatus(value: string): boolean {
-  return value.trimStart().startsWith('[')
+  return value.trimStart().startsWith("[");
 }
 
 export function getNotificationExtensionStatuses(
   statuses: ReadonlyMap<string, string>,
   hiddenKeys: ReadonlySet<string>,
 ): string[] {
-  const notifications: string[] = []
+  const notifications: string[] = [];
   for (const [statusKey, value] of statuses.entries()) {
-    if (
-      hiddenKeys.has(statusKey) ||
-      !value ||
-      !isNotificationExtensionStatus(value)
-    ) {
-      continue
+    if (hiddenKeys.has(statusKey) || !value || !isNotificationExtensionStatus(value)) {
+      continue;
     }
-    notifications.push(value)
+    notifications.push(value);
   }
-  return notifications
+  return notifications;
 }
 
 export function normalizeExtensionStatusValue(value: string): string | null {
   if (!value || visibleWidth(value) <= 0) {
-    return null
+    return null;
   }
 
-  const stripped = value.replace(/(\x1b\[[0-9;]*m|\s|·|[|])+$/, '')
-  return visibleWidth(stripped) > 0 ? stripped : null
+  const stripped = value.replace(/(\x1b\[[0-9;]*m|\s|·|[|])+$/, "");
+  return visibleWidth(stripped) > 0 ? stripped : null;
 }
 
 export function normalizeCompactExtensionStatus(value: string): string | null {
   if (isNotificationExtensionStatus(value)) {
-    return null
+    return null;
   }
 
-  return normalizeExtensionStatusValue(value)
+  return normalizeExtensionStatusValue(value);
 }

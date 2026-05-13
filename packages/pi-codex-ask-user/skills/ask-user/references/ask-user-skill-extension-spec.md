@@ -1,49 +1,96 @@
-# Codex Ask User Skill × Extension Spec
+# Ask User Skill × Extension Interaction Spec
 
 ## Purpose
 
-`request_user_input` provides a Codex-compatible decision gate backed by the richer `pi-ask-user` terminal UI.
+This document defines a minimal decision-gating protocol for using the `ask-user` skill with the `ask_user` tool.
 
-The goal is to collect explicit user decisions at high-impact or ambiguous boundaries while preserving the Codex tool shape.
+Goal: require explicit user decisions at high-impact or ambiguous boundaries before implementation continues.
 
-## Trigger Matrix
+---
+
+## 1) Trigger Matrix (When to Call `ask_user`)
 
 | Scenario | Must Ask? | Why |
 |---|---:|---|
-| Architecture trade-off | Yes | Preference-sensitive, high blast radius |
-| Data schema or migration path | Yes | Costly to reverse |
-| Security/compliance posture | Yes | Risk ownership is human |
+| Architecture trade-off (e.g., queue vs cron, SQL vs KV) | Yes | Preference-sensitive, high blast radius |
+| Data schema / migration path selection | Yes | Costly to reverse |
+| Security/compliance posture trade-off | Yes | Risk ownership is human |
 | Requirements conflict or ambiguity | Yes | Need explicit intent |
-| Non-trivial prioritization | Yes | Product decision, not purely technical |
-| Local refactor with identical behavior | Usually no | No policy-level decision |
+| Non-trivial scope cut/prioritization | Yes | Product decision, not purely technical |
+| Purely local refactor with identical behavior | Usually no | No policy-level decision |
 | Formatting-only edits | No | Trivial |
-| User already gave exact decision | No | Decision already captured |
+| User already gave explicit choice for exact trade-off | No (unless new ambiguity) | Decision already captured |
 
-## Tool Behavior
+---
 
-The tool accepts 1-3 questions. Each question has:
+## 2) Decision Handshake
 
-- `id`: stable answer key
-- `header`: short UI label
-- `question`: one-sentence prompt
-- `options`: 2-3 structured choices with `label` and `description`
+Use this protocol whenever the trigger matrix says to ask.
 
-The extension adds a freeform `None of the above` path, optional extra context after selection, overlay/inline UI support, overlay hide/show shortcut support, native waiting notifications, events, and structured result details. Option labels must be unique per question and cannot be `None of the above` or start with `user_note: ` because those strings have special meaning in results.
+1. **Detect boundary**
+   - classify as `high_stakes`, `ambiguous`, `both`, or `clear`
+2. **Gather evidence**
+   - read code/docs/logs first; do not ask blindly
+3. **Summarize context**
+   - prepare concise trade-off context (3–7 bullets or short paragraph)
+4. **Ask one focused question**
+   - call `ask_user` for one decision at a time
+5. **Commit and proceed**
+   - restate chosen option and implement accordingly
 
-## Display Preferences
+### Retry/cancel policy
 
-The Codex tool shape intentionally does not include display controls. Users can configure behavior in Pi `settings.json` under `piCodexAskUser`:
+- Max **2** `ask_user` attempts for the same decision boundary.
+- Attempt 1: normal structured question.
+- Attempt 2: narrower question with recommendation and explicit options.
+- After attempt 2:
+  - `high_stakes` / `both`: stop and report blocked.
+  - `ambiguous` only: proceed only if user delegates (e.g., “your call”), using the most reversible default.
+
+---
+
+## 3) Example Payloads
+
+### Architecture decision
 
 ```json
 {
-  "piCodexAskUser": {
-    "displayMode": "inline",
-    "overlayToggleKey": "alt+o",
-    "commentToggleKey": "ctrl+g",
-    "timeoutMs": 30000,
-    "allowMultiple": false
-  }
+  "question": "Which implementation path should we use for v1?",
+  "context": "Path A is faster to ship but less extensible. Path B takes longer but supports plugin-style growth. Existing deadline is 2 weeks.",
+  "options": [
+    { "title": "Path A (ship fast)", "description": "Lowest scope, revisit architecture later" },
+    { "title": "Path B (extensible)", "description": "Higher initial effort, cleaner long-term composition" }
+  ],
+  "allowMultiple": false,
+  "allowFreeform": true
 }
 ```
 
-Global settings live at `~/.pi/agent/settings.json`. Project overrides live at `.pi/settings.json` and override global values. Set `timeoutMs` to `null` or `0` in project settings to clear a global timeout.
+### Display mode (optional)
+
+The `ask_user` tool accepts an optional `displayMode` parameter:
+
+- `"overlay"` *(default)*: centered modal; covers the conversation underneath.
+- `"inline"`: rendered in the conversation flow; preceding messages stay visible.
+
+Guidance:
+
+- Omit `displayMode` to respect the user's configured preference (`PI_ASK_USER_DISPLAY_MODE` environment variable).
+- Pass `"inline"` only when the immediately preceding assistant message (summary, trade-offs, recommendation) is the primary context for the decision and must remain visible.
+- Pass `"overlay"` only to explicitly force the modal style (rare).
+
+### Requirement-priority decision
+
+```json
+{
+  "question": "Which requirement should be prioritized first?",
+  "context": "Current request mixes performance tuning and UI redesign. Doing both now risks delaying delivery.",
+  "options": [
+    "Performance first",
+    "UI redesign first",
+    "Do a minimal pass on both"
+  ],
+  "allowMultiple": false,
+  "allowFreeform": true
+}
+```

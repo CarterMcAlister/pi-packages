@@ -1,8 +1,8 @@
-# @carter-mcalister/pi-multicodex roadmap
+# @victor-software-house/pi-multicodex roadmap
 
 ## Product focus
 
-`@carter-mcalister/pi-multicodex` is a pi extension focused on rotating multiple ChatGPT Codex OAuth accounts for the `openai-codex-responses` API.
+`@victor-software-house/pi-multicodex` is a pi extension focused on rotating multiple ChatGPT Codex OAuth accounts for the `openai-codex-responses` API.
 
 The roadmap is centered on:
 
@@ -34,7 +34,7 @@ The current shipped behavior is:
 
 - Keep npmjs as the canonical public distribution channel.
 - Keep the package npm-installable for pi users.
-- Use bun workspaces for local development inside this monorepo.
+- Use pnpm for local development.
 - Keep releases small, validated, and repeatable.
 - Prefer explicit behavior over hidden heuristics.
 - Prefer one memorable top-level command over several loosely related commands.
@@ -46,15 +46,15 @@ The current shipped behavior is:
 
 ## Decisions already locked in
 
-- **Package name:** `@carter-mcalister/pi-multicodex`
+- **Package name:** `@victor-software-house/pi-multicodex`
 - **Scope:** Codex only
-- **Local package manager:** bun
+- **Local package manager:** pnpm
 - **Primary release path:** npmjs with trusted publishing
 - **Storage file:** `~/.pi/agent/codex-accounts.json`
 - **Provider strategy:** own the normal `openai-codex` path directly
 - **Auth strategy:** auto-import pi's stored `openai-codex` auth when it is new or changed
 - **Footer config storage:** `settings.json` key `pi-multicodex`
-- **Hook strategy:** `lefthook` runs the repo check flow before push
+- **Hook strategy:** `lefthook` runs `mise run pre-push` before push
 - **Migration policy for command UX:** move quickly to the new command family with no backward-compatibility aliases for deprecated commands
 
 ## Command model decision
@@ -323,8 +323,9 @@ Goal: confirm runtime behavior stays correct as the command model and controller
 Every release should continue to pass at least:
 
 ```bash
-bun run --filter @carter-mcalister/pi-multicodex check
+pnpm check
 npm pack --dry-run
+pnpm release:dry
 ```
 
 Target release flow:

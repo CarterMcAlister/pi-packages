@@ -2,8 +2,21 @@
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-05-10
+
 ### Fixed
-- **Bash-mode cwd handoff** — Directory changes made in sticky bash mode are now synced back into Pi's normal agent session when the managed shell cwd changes, so leaving bash mode carries the new working directory forward.
+- **Editor undo shortcut** — Command-Z now restores deleted prompt text through the custom editor undo stack.
+
+## [0.5.3] - 2026-05-10
+
+### Fixed
+- **Fixed-editor status scrolling** — Mouse wheel scrolling now repaints the app-owned chat viewport immediately when fixed status rows are present, instead of waiting for a later TUI diff render.
+
+## [0.5.2] - 2026-05-09
+
+### Fixed
+- **Editor file drops** — Finder file, folder, image, and screenshot drops now insert path strings into the custom editor, including terminals that send `file://` URI drops.
+- **Fixed-editor status scrolling** — Mouse wheel and keyboard scrolling now refresh viewport bounds when fixed Pi/status rows appear, so fixed status messages no longer stop chat scrolling.
 
 ## [0.5.1] - 2026-05-02
 

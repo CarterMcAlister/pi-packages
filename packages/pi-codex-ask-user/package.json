@@ -1,61 +1,51 @@
 {
-  "name": "@carter-mcalister/pi-codex-ask-user",
-  "version": "0.2.0",
-  "description": "Codex-compatible request_user_input tool for Pi",
-  "author": "Carter McAlister",
+  "name": "pi-ask-user",
+  "version": "0.11.0",
+  "description": "Interactive ask_user tool for pi-coding-agent with searchable split-pane selection UI, multi-select, and freeform input",
   "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "extension",
+    "ask",
+    "ask_user",
+    "interactive"
+  ],
+  "author": "Enzo Lucchesi <enzo@edl.sh>",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/CarterMcAlister/pi-packages.git",
-    "directory": "packages/pi-codex-ask-user"
+    "url": "git+https://github.com/edlsh/pi-ask-user.git"
   },
   "bugs": {
-    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
+    "url": "https://github.com/edlsh/pi-ask-user/issues"
   },
-  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-codex-ask-user#readme",
+  "homepage": "https://github.com/edlsh/pi-ask-user#readme",
   "publishConfig": {
     "access": "public"
   },
-  "files": [
-    "src",
-    "skills",
-    "README.md"
-  ],
-  "keywords": [
-    "pi-package",
-    "pi-extension",
-    "pi",
-    "codex",
-    "request_user_input",
-    "ask-user"
-  ],
-  "scripts": {
-    "format": "bunx @biomejs/biome check --write .",
-    "lint": "bunx @biomejs/biome check .",
-    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
-    "test": "bun test",
-    "check": "bun run lint && bun run typecheck && bun run test"
-  },
   "pi": {
     "extensions": [
-      "./src/index.ts"
+      "./index.ts"
     ],
     "skills": [
       "./skills"
     ]
   },
+  "files": [
+    "index.ts",
+    "single-select-layout.ts",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "npm pack --dry-run"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
     "@sinclair/typebox": "*"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "2.4.13",
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "@sinclair/typebox": "*",
-    "bun-types": "latest",
-    "typescript": "^5.9.3"
-  },
-  "license": "MIT"
+  }
 }

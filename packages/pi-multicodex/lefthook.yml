@@ -1,0 +1,10 @@
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}
+
+pre-push:
+  parallel: false
+  commands:
+    ci-checks:
+      run: mise run pre-push

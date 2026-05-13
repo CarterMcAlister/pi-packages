@@ -1,66 +1,162 @@
 ---
 name: ask-user
-description: "Use request_user_input before high-stakes architectural decisions, irreversible changes, or ambiguous requirements. Summarize context, present structured Codex-compatible options, collect explicit user choice, then proceed."
+description: "You MUST use this before high-stakes architectural decisions, irreversible changes, or when requirements are ambiguous. Runs a decision handshake with the ask_user tool: summarize context, present structured options, collect explicit user choice, then proceed."
 metadata:
-  short-description: Codex-compatible decision gate
+  short-description: Decision gate for ambiguity and high-stakes choices
 ---
 
-# Codex-Compatible Ask User Decision Gate
+# Ask User Decision Gate
 
 Use this skill to force explicit user alignment before consequential decisions.
 
-This package exposes `request_user_input`, not `ask_user`. Keep the Codex-compatible tool shape:
+This skill is about **decision control**, not general chit-chat.
 
-```json
-{
-  "questions": [
-    {
-      "id": "decision_id",
-      "header": "Decision",
-      "question": "Which option should we use?",
-      "options": [
-        { "label": "Recommended (Recommended)", "description": "Best default for the current constraints." },
-        { "label": "Alternative", "description": "Useful when the trade-off matters more." }
-      ]
-    }
-  ]
-}
-```
+## Non-negotiable rule
 
-## Non-Negotiable Rule
-
-Invoke `request_user_input` before proceeding when any of the following is true:
+Invoke `ask_user` before proceeding when **any** of the following is true:
 
 1. The next step changes architecture, schema, API contracts, deployment strategy, or security posture.
-2. The work is costly to undo, such as a large refactor, migration, destructive edit, or production-facing behavior change.
+2. The work is costly to undo (large refactor, migration, destructive edit, production-facing behavior change).
 3. Requirements, constraints, or success criteria are unclear, conflicting, or missing.
 4. Multiple valid options exist and the trade-off is preference-dependent.
 5. You are about to assume something that can materially change implementation.
 
-Do not skip this gate unless the user has already provided a clear, explicit decision for the exact trade-off.
+Do **not** skip this gate unless the user has already provided a clear, explicit decision for the exact trade-off.
 
-## Decision Handshake
+## Agent Protocol Handshake (required)
 
-1. Gather evidence from code, docs, logs, or tool output first.
-2. Summarize current state, constraints, trade-offs, and your recommendation.
-3. Ask one focused question when possible; never exceed three questions in one call.
-4. Provide 2-3 mutually exclusive choices per question.
-5. Put the recommended option first and suffix its label with `(Recommended)`.
-6. Do not include an Other option; the tool adds `None of the above` as a freeform path.
-7. Keep option labels unique and do not start labels with `user_note: ` because that prefix marks optional notes in results.
-8. Restate the decision and proceed.
+Follow this handshake in order.
 
-## Retry/Cancel Policy
+### 1) Detect boundary
+Classify the current step as:
+- `high_stakes`
+- `ambiguous`
+- `both`
+- `clear` (no gate needed)
 
-- Max 2 attempts for the same decision boundary.
-- If a high-stakes decision is cancelled or unclear after the second attempt, stop and report blocked.
-- If the ambiguity is low-stakes and the user explicitly delegates the choice, proceed with the most reversible default and state assumptions.
+If classification is not `clear`, continue.
 
-## Payload Quality
+### 2) Gather evidence first
+Before asking, gather context from available tools (`read`, `bash`, `exa`, `ref`, etc.).
+Do not ask the user to decide blind.
 
-Good questions are concrete and decision-oriented:
+### 3) Synthesize context
+Prepare a short neutral summary (3-7 bullets or short paragraph) covering:
+- current state
+- key constraints
+- trade-offs
+- recommendation (if any)
 
-- “Which caching strategy should we use for v1?”
-- “Do you want the fast rollout or the safer migration path?”
+### 4) Ask one focused question
+Call `ask_user` with one decision at a time:
+- `question`: concrete decision prompt
+- `context`: synthesized summary
+- `options`: 2-5 clear choices when possible
+- `allowMultiple`: `false` unless independent selections are genuinely needed
+- `allowFreeform`: usually `true`
+- `displayMode` *(optional)*: `"overlay"` (default) or `"inline"`. Use `"inline"` when preceding assistant context (summary, trade-offs, recommendation) is essential to the decision and should remain visible — overlays cover the conversation underneath. The user may set a personal default via the `PI_ASK_USER_DISPLAY_MODE` environment variable; only pass this when you intentionally want to override it for one call.
+### 5) Commit the decision
+After response:
+- restate the decision in plain language
+- state what will be done next
+- proceed with implementation
 
-Avoid broad prompts, unrelated multipart questions, and questions that should be answered by reading the code first.
+### 6) Re-open only on new ambiguity
+Ask again only if materially new uncertainty appears.
+Avoid repetitive confirmation loops.
+
+## Anti-overasking guardrails (required)
+
+Apply a strict question budget per decision boundary:
+
+- **Max 1** `ask_user` call per decision boundary in normal cases.
+- **Max 2** `ask_user` calls for the same boundary when first response is unclear/cancelled.
+- Never ask the same trade-off again without new evidence.
+
+Escalation ladder:
+
+1. **Attempt 1:** structured options + concise context.
+2. **Attempt 2 (only if needed):** narrower question with agent recommendation and explicit choices:
+   - `Proceed with recommended option`
+   - `Choose another option` (freeform)
+   - `Stop for now`
+
+After attempt 2:
+
+- If boundary is `high_stakes` or `both`: **stop and mark blocked**. Do not keep asking.
+- If boundary is `ambiguous` only and user says “your call” or equivalent: proceed with the most reversible default and state assumptions explicitly.
+
+## `ask_user` payload quality standard
+
+### Question quality
+Use:
+- “Which option should we adopt for X?”
+- “Do you want A (fast) or B (safer) for Y?”
+
+Avoid:
+- broad/open prompts with no decision boundary
+- multiple unrelated decisions in one question
+- questions that should be answered by reading code/docs first
+
+### Option quality
+Options must be:
+- mutually understandable
+- short and outcome-oriented
+- explicit on trade-offs
+
+Good options include a short description when trade-offs are non-obvious.
+
+## Recommended patterns
+
+### Single-select architecture decision
+
+```json
+{
+  "question": "Which caching strategy should we use for the first release?",
+  "context": "Current API has p95 latency issues. Redis is fastest but adds infra complexity; in-memory cache is simpler but not shared across instances.",
+  "options": [
+    { "title": "In-memory cache", "description": "Simpler rollout, weaker horizontal consistency" },
+    { "title": "Redis cache", "description": "Better consistency and scalability, more ops overhead" }
+  ],
+  "allowMultiple": false,
+  "allowFreeform": true
+}
+```
+
+### Multi-select when decisions are independent
+
+```json
+{
+  "question": "Select the first-wave hardening items to implement now.",
+  "context": "We can ship quickly with baseline controls, then add targeted hardening. Budget is limited to 1-2 days.",
+  "options": [
+    "Rate limiting",
+    "Audit logging",
+    "Input schema validation",
+    "Secrets rotation"
+  ],
+  "allowMultiple": true,
+  "allowFreeform": true
+}
+```
+
+## Anti-patterns
+
+- Asking `ask_user` without first gathering context
+- Using it for trivial formatting choices
+- Forcing options when freeform is clearly better
+- Asking the same question repeatedly without new information
+- Proceeding with high-stakes implementation after unclear/cancelled answer
+
+## If user cancels or answer is unclear
+
+Pause execution and explain what is blocked.
+Use at most one narrower follow-up `ask_user` question (attempt 2).
+After that, do not continue asking in a loop:
+- for high-stakes decisions: remain blocked until explicit decision
+- for ambiguity-only decisions: proceed only if user delegated the choice ("your call")
+
+## Additional reference
+
+For full trigger matrix, UX conventions, and extension interaction details, read:
+- `references/ask-user-skill-extension-spec.md`

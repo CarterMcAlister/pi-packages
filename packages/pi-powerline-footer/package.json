@@ -1,62 +1,46 @@
 {
-  "name": "@carter-mcalister/pi-powerline-footer",
-  "version": "0.1.0",
-  "description": "Powerline-style status bar extension for Pi",
-  "author": "Carter McAlister",
+  "name": "pi-powerline-footer",
+  "version": "0.5.4",
+  "description": "Powerline-style status bar extension for pi coding agent",
   "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/CarterMcAlister/pi-packages.git",
-    "directory": "packages/pi-powerline-footer"
-  },
-  "bugs": {
-    "url": "https://github.com/CarterMcAlister/pi-packages/issues"
-  },
-  "homepage": "https://github.com/CarterMcAlister/pi-packages/tree/main/packages/pi-powerline-footer#readme",
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "*.ts",
     "*.md",
     "*.json",
+    "!progress.md",
     "bash-mode/**/*.ts",
     "fixed-editor/**/*.ts"
   ],
   "keywords": [
     "pi-package",
-    "pi-extension",
     "pi",
+    "coding-agent",
     "powerline",
     "status-bar",
     "extension"
   ],
+  "author": "Nico Bailon",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicobailon/pi-powerline-footer.git"
+  },
   "scripts": {
-    "format": "bunx @biomejs/biome check --write .",
-    "lint": "bunx @biomejs/biome check .",
-    "typecheck": "bunx tsc -p ../../tsconfig.json --noEmit",
-    "test": "node --experimental-strip-types --test tests/**/*.test.ts",
-    "check": "bun run lint && bun run typecheck && bun run test"
+    "test": "node --experimental-strip-types --test tests/**/*.test.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "^0.74.0",
+    "@earendil-works/pi-coding-agent": "^0.74.0",
+    "@earendil-works/pi-tui": "^0.74.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.74.0",
+    "@earendil-works/pi-coding-agent": "^0.74.0",
+    "@earendil-works/pi-tui": "^0.74.0"
   },
   "pi": {
     "extensions": [
       "./index.ts"
     ]
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*"
-  },
-  "devDependencies": {
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "bun-types": "latest",
-    "typescript": "^5.9.3"
-  },
-  "license": "MIT",
-  "dependencies": {
-    "node-pty": "^1.1.0"
   }
 }

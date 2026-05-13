@@ -1,11 +1,11 @@
-import { getSeparatorChars } from './icons.js'
-import type { SeparatorDef, StatusLineSeparatorStyle } from './types.js'
+import type { SeparatorDef, StatusLineSeparatorStyle } from "./types.ts";
+import { getSeparatorChars } from "./icons.ts";
 
 export function getSeparator(style: StatusLineSeparatorStyle): SeparatorDef {
-  const chars = getSeparatorChars()
+  const chars = getSeparatorChars();
 
   switch (style) {
-    case 'powerline':
+    case "powerline":
       return {
         left: chars.powerlineLeft,
         right: chars.powerlineRight,
@@ -14,9 +14,9 @@ export function getSeparator(style: StatusLineSeparatorStyle): SeparatorDef {
           right: chars.powerlineLeft,
           useBgAsFg: true,
         },
-      }
+      };
 
-    case 'powerline-thin':
+    case "powerline-thin":
       return {
         left: chars.powerlineThinLeft,
         right: chars.powerlineThinRight,
@@ -25,33 +25,33 @@ export function getSeparator(style: StatusLineSeparatorStyle): SeparatorDef {
           right: chars.powerlineLeft,
           useBgAsFg: true,
         },
-      }
+      };
 
-    case 'slash':
-      return { left: ` ${chars.slash} `, right: ` ${chars.slash} ` }
+    case "slash":
+      return { left: ` ${chars.slash} `, right: ` ${chars.slash} ` };
 
-    case 'pipe':
-      return { left: ` ${chars.pipe} `, right: ` ${chars.pipe} ` }
+    case "pipe":
+      return { left: ` ${chars.pipe} `, right: ` ${chars.pipe} ` };
 
-    case 'block':
-      return { left: chars.block, right: chars.block }
+    case "block":
+      return { left: chars.block, right: chars.block };
 
-    case 'none':
-      return { left: chars.space, right: chars.space }
+    case "none":
+      return { left: chars.space, right: chars.space };
 
-    case 'ascii':
-      return { left: chars.asciiLeft, right: chars.asciiRight }
+    case "ascii":
+      return { left: chars.asciiLeft, right: chars.asciiRight };
 
-    case 'dot':
-      return { left: chars.dot, right: chars.dot }
+    case "dot":
+      return { left: chars.dot, right: chars.dot };
 
-    case 'chevron':
-      return { left: '›', right: '‹' }
+    case "chevron":
+      return { left: "›", right: "‹" };
 
-    case 'star':
-      return { left: '✦', right: '✦' }
+    case "star":
+      return { left: "✦", right: "✦" };
 
     default:
-      return getSeparator('powerline-thin')
+      return getSeparator("powerline-thin");
   }
 }

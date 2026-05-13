@@ -1,35 +1,34 @@
 export interface WelcomeDismissScheduler<Context> {
-  schedule(ctx: Context): void
-  cancel(): void
+  schedule(ctx: Context): void;
+  cancel(): void;
 }
 
 interface WelcomeDismissSchedulerOptions<Context> {
-  dismiss(ctx: Context): void
-  getGeneration(): number
-  isEnabled(): boolean
+  dismiss(ctx: Context): void;
+  getGeneration(): number;
+  isEnabled(): boolean;
 }
 
 export function createWelcomeDismissScheduler<Context>(
   options: WelcomeDismissSchedulerOptions<Context>,
 ): WelcomeDismissScheduler<Context> {
-  let timer: ReturnType<typeof setTimeout> | null = null
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
   return {
     schedule(ctx) {
-      if (timer) return
+      if (timer) return;
 
-      const generation = options.getGeneration()
+      const generation = options.getGeneration();
       timer = setTimeout(() => {
-        timer = null
-        if (!options.isEnabled() || generation !== options.getGeneration())
-          return
-        options.dismiss(ctx)
-      }, 0)
+        timer = null;
+        if (!options.isEnabled() || generation !== options.getGeneration()) return;
+        options.dismiss(ctx);
+      }, 0);
     },
     cancel() {
-      if (!timer) return
-      clearTimeout(timer)
-      timer = null
+      if (!timer) return;
+      clearTimeout(timer);
+      timer = null;
     },
-  }
+  };
 }

@@ -90,7 +90,10 @@ export function clearLastAnalyzedStateCache(): void {
 function getFileStateHash(filePath: string): string {
 	try {
 		const content = nodeFs.readFileSync(filePath);
-		return nodeCrypto.createHash("sha256").update(content).digest("hex");
+		return nodeCrypto
+			.createHash("sha256")
+			.update(new Uint8Array(content))
+			.digest("hex");
 	} catch (err) {
 		const code = (err as { code?: string }).code ?? "unknown";
 		return `unreadable:${code}`;

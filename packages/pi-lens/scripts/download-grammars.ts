@@ -46,7 +46,7 @@ async function downloadGrammar(destDir: string, filename: string): Promise<void>
 	const res = await fetch(url);
 	if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
 	const buf = await res.arrayBuffer();
-	writeFileSync(dest, Buffer.from(buf));
+	writeFileSync(dest, new Uint8Array(buf));
 	console.log(`  ok    ${filename}`);
 }
 

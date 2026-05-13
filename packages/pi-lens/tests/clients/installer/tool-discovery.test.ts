@@ -198,20 +198,19 @@ describe("ensureTool force-reinstall", () => {
 			"../../../clients/installer/index.ts"
 		);
 		// Use a path that can't collide with a real tool on PATH
-		const stalePath = "/fake/stale/rust-analyzer";
+		const stalePath = "/fake/stale/stylelint";
 
 		// Seed the probe cache with a fake entry
 		mockFsStat.mockResolvedValue({ mtimeMs: Date.now() });
-		await updateProbeCache("rust-analyzer", stalePath);
+		await updateProbeCache("stylelint", stalePath);
 
 		spawnCalls.length = 0;
 
-		const result = await ensureTool("rust-analyzer", {
+		const result = await ensureTool("stylelint", {
 			forceReinstall: true,
 		});
 
-		// installTool fails (no GitHub API mock) → undefined
-		// Key: NOT returning the stale "/fake/stale/rust-analyzer" from cache
+		// Key: NOT returning the stale "/fake/stale/stylelint" from cache
 		expect(result).not.toBe(stalePath);
 	});
 
@@ -219,8 +218,8 @@ describe("ensureTool force-reinstall", () => {
 		// Pre-populate probe cache with a stale PATH entry
 		mockFsReadFile.mockResolvedValue(
 			JSON.stringify({
-				"rust-analyzer": {
-					path: "/fake/cached/rust-analyzer",
+				stylelint: {
+					path: "/fake/cached/stylelint",
 					mtimeMs: Date.now(),
 					cachedAt: Date.now(),
 				},
@@ -231,11 +230,11 @@ describe("ensureTool force-reinstall", () => {
 
 		spawnCalls.length = 0;
 
-		const result = await ensureTool("rust-analyzer", {
+		const result = await ensureTool("stylelint", {
 			forceReinstall: true,
 		});
 
-		expect(result).not.toBe("/fake/cached/rust-analyzer");
+		expect(result).not.toBe("/fake/cached/stylelint");
 		expect(spawnCalls.length).toBeGreaterThan(0);
 	});
 });

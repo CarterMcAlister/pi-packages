@@ -1,7 +1,8 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { GITHUB_TOOLS, GitHubToolId } from "../../../clients/installer/index.ts";
+import { GITHUB_TOOLS } from "../../../clients/installer/index.ts";
+import type { GitHubToolId } from "../../../clients/installer/index.ts";
 
 // Ensure the real installer module is used, not any mock registered by other test files
 vi.unmock("../../../clients/installer/index.ts");

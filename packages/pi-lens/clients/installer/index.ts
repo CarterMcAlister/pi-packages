@@ -1344,8 +1344,8 @@ function httpsGet(url: string, maxRedirects = 5): Promise<Buffer> {
 					res.resume();
 					return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
 				}
-				const chunks: Buffer[] = [];
-				res.on("data", (chunk: Buffer) => chunks.push(chunk));
+				const chunks: Uint8Array[] = [];
+				res.on("data", (chunk: Buffer) => chunks.push(new Uint8Array(chunk)));
 				res.on("end", () => resolve(Buffer.concat(chunks)));
 				res.on("error", reject);
 			})
@@ -1460,17 +1460,17 @@ async function installGitHubTool(
 			// Bare gzip (e.g. rust-analyzer-x86_64-unknown-linux-gnu.gz) — decompress directly
 			const decompressed = await new Promise<Buffer>((resolve, reject) => {
 				const gunzip = createGunzip();
-				const chunks: Buffer[] = [];
-				gunzip.on("data", (chunk: Buffer) => chunks.push(chunk));
+				const chunks: Uint8Array[] = [];
+				gunzip.on("data", (chunk: Buffer) => chunks.push(new Uint8Array(chunk)));
 				gunzip.on("end", () => resolve(Buffer.concat(chunks)));
 				gunzip.on("error", reject);
-				gunzip.end(assetBuffer);
+				gunzip.end(new Uint8Array(assetBuffer));
 			});
-			await fs.writeFile(destPath, decompressed, { mode: 0o755 });
+			await fs.writeFile(destPath, new Uint8Array(decompressed), { mode: 0o755 });
 		} else if (assetName.endsWith(".tar.gz") || assetName.endsWith(".tar.xz")) {
 			// Write archive to temp file, extract with system tar
 			const tmpArchive = path.join(GITHUB_BIN_DIR, `_tmp_${assetName}`);
-			await fs.writeFile(tmpArchive, assetBuffer);
+			await fs.writeFile(tmpArchive, new Uint8Array(assetBuffer));
 			const tmpDir = path.join(GITHUB_BIN_DIR, `_tmp_extract_${tool.id}`);
 			await fs.mkdir(tmpDir, { recursive: true });
 
@@ -1497,7 +1497,7 @@ async function installGitHubTool(
 		} else if (assetName.endsWith(".zip")) {
 			// Write zip to temp, extract with unzip (Linux/macOS) or Expand-Archive (Windows)
 			const tmpArchive = path.join(GITHUB_BIN_DIR, `_tmp_${assetName}`);
-			await fs.writeFile(tmpArchive, assetBuffer);
+			await fs.writeFile(tmpArchive, new Uint8Array(assetBuffer));
 			const tmpDir = path.join(GITHUB_BIN_DIR, `_tmp_extract_${tool.id}`);
 			await fs.mkdir(tmpDir, { recursive: true });
 
@@ -1547,7 +1547,7 @@ async function installGitHubTool(
 			if (!isWindows) await fs.chmod(destPath, 0o750);
 		} else {
 			// Bare binary (e.g. shfmt_*_linux_amd64)
-			await fs.writeFile(destPath, assetBuffer, { mode: 0o755 });
+			await fs.writeFile(destPath, new Uint8Array(assetBuffer), { mode: 0o755 });
 		}
 	} catch (err) {
 		logSessionStart(

@@ -4,6 +4,8 @@ All notable changes to pi-lens will be documented in this file.
 
 ## [Unreleased]
 
+## [3.8.44] - 2026-05-13
+
 ### Added
 
 - **`fish` FileKind with `fish_indent` formatter runner** — `.fish` files are now a first-class `"fish"` kind rather than being bucketed under `"shell"`. A new `fish-indent` runner wraps `fish_indent --check` (fish ≥ 3.6), reporting a formatting warning with a `fish_indent -w` fix hint on exit 1 and a blocking parse-error diagnostic when stderr is non-empty. Formatter and linter policy entries added for `.fish` in `tool-policy.ts`; fish dispatch group `[lsp, fish-indent]` wired in `language-policy.ts`. Closes #74.

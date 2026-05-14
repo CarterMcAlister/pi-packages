@@ -106,7 +106,7 @@ Mixing different capture names in one `[...]` block causes tree-sitter to silent
 **Post-filters** (`post_filter` in YAML, `applyPostFilter` in `clients/tree-sitter-client.ts`): evaluated after query matching to reject false positives. Key ones: `count_params` (long-param-list: excludes optional/defaulted params), `ts_ssrf_sink` (requires URL to look like external input), `check_secret_pattern` (variable name must match secret-sounding pattern).
 
 ## Current version / state
-v3.8.43 is the package version. Master includes unreleased async runner consistency work after the Knip freeze fix: jscpd/Madge/formatters/dispatch runners now use async subprocess execution in hook paths, with in-flight guards for expensive scans. CI runs `npm ci` + tsc lint + vitest.
+v3.8.44 is the package version. Master includes unreleased async runner consistency work after the Knip freeze fix: jscpd/Madge/formatters/dispatch runners now use async subprocess execution in hook paths, with in-flight guards for expensive scans. CI runs `npm ci` + tsc lint + vitest.
 
 ## Conventions
 - TypeScript ESM throughout (`"type": "module"`)

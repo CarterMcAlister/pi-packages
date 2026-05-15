@@ -364,6 +364,12 @@ export default function (pi: ExtensionAPI) {
 		default: false,
 	});
 
+	pi.registerFlag("no-fallow", {
+		description: "Disable Fallow project-graph analysis (dead code, duplication, health)",
+		type: "boolean",
+		default: false,
+	});
+
 	pi.registerFlag("lens-guard", {
 		description:
 			"Experimental: block git commit/push when unresolved pi-lens blockers exist",
@@ -581,6 +587,115 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
+	pi.registerCommand("lens-fallow", {
+		description:
+			"Run Fallow project-graph analysis. Usage: /lens-fallow status | install | audit [--base <ref>] [--gate <new-only|all>] | dead-code [file...] | dupes | health | all",
+		handler: async (args, ctx) => {
+			const parts = normalizeCommandArgs(args);
+			const action = parts[0] ?? "status";
+			const cwd = ctx.cwd ?? runtime.projectRoot;
+			const { fallowClient } = await loadBootstrapClients();
+
+			const readArg = (flag: string): string | undefined => {
+				const index = parts.findIndex((part) => part === flag);
+				return index >= 0 ? parts[index + 1] : undefined;
+			};
+			const positional = parts
+				.slice(1)
+				.filter((part, index, arr) => {
+					const previous = arr[index - 1];
+					return !part.startsWith("-") && previous !== "--base" && previous !== "--gate";
+				});
+
+			if (action === "status") {
+				const status = await fallowClient.getStatus();
+				ctx.ui.notify(
+					[
+						"🌾 FALLOW STATUS",
+						`CLI: ${status.available ? "installed" : "not found"}`,
+						`Source: ${status.source}`,
+						...(status.command ? [`Command: ${status.command}`] : []),
+						...(status.version ? [`Version: ${status.version}`] : []),
+						`Automatic scans: ${pi.getFlag("no-fallow") ? "disabled (--no-fallow)" : "enabled"}`,
+					].join("\n"),
+					status.available ? "info" : "warning",
+				);
+				return;
+			}
+
+			if (action === "install") {
+				const ok = await fallowClient.ensureAvailable();
+				ctx.ui.notify(
+					ok ? "Fallow is ready." : "Fallow install failed. Try `npm install -g fallow`.",
+					ok ? "info" : "warning",
+				);
+				return;
+			}
+
+			if (action === "audit") {
+				const gate = readArg("--gate");
+				const result = await fallowClient.audit(cwd, {
+					base: readArg("--base"),
+					gate: gate === "all" ? "all" : gate === "new-only" ? "new-only" : undefined,
+				});
+				ctx.ui.notify(
+					fallowClient.formatAudit(result, cwd),
+					result.verdict === "fail" || !result.success ? "warning" : "info",
+				);
+				return;
+			}
+
+			if (action === "dead-code") {
+				const files = positional.map((file) =>
+					path.isAbsolute(file) ? file : path.resolve(cwd, file),
+				);
+				const result = await fallowClient.deadCode(
+					cwd,
+					files.length > 0 ? { files } : {},
+				);
+				ctx.ui.notify(
+					fallowClient.formatDeadCode(result, cwd) || "Fallow dead-code clean.",
+					result.success ? "info" : "warning",
+				);
+				return;
+			}
+
+			if (action === "dupes") {
+				const result = await fallowClient.dupes(cwd);
+				ctx.ui.notify(
+					fallowClient.formatDupes(result, cwd) || "Fallow dupes clean.",
+					result.success ? "info" : "warning",
+				);
+				return;
+			}
+
+			if (action === "health") {
+				const result = await fallowClient.health(cwd);
+				ctx.ui.notify(
+					fallowClient.formatHealth(result, cwd) || "Fallow health clean.",
+					result.success ? "info" : "warning",
+				);
+				return;
+			}
+
+			if (action === "all") {
+				const result = await fallowClient.analyzeProject(cwd);
+				ctx.ui.notify(
+					fallowClient.formatProjectResult(result, cwd) || "Fallow analysis clean.",
+					result.deadCode.success && result.duplication.success && result.health.success
+						? "info"
+						: "warning",
+				);
+				return;
+			}
+
+			ctx.ui.notify(
+				"Usage: /lens-fallow status | install | audit [--base <ref>] [--gate <new-only|all>] | dead-code [file...] | dupes | health | all",
+				"warning",
+			);
+		},
+	});
+
 	pi.registerCommand("lens-booboo", {
 		description:
 			"Full codebase review: design smells, complexity, AI slop detection, TODOs, dead code, duplicates, type coverage. Results saved to .pi-lens/reviews/. Usage: /lens-booboo [path]",
@@ -590,6 +705,7 @@ export default function (pi: ExtensionAPI) {
 				todoScanner,
 				knipClient,
 				jscpdClient,
+				fallowClient,
 				typeCoverageClient,
 				depChecker,
 			} = await loadBootstrapClients();
@@ -602,6 +718,7 @@ export default function (pi: ExtensionAPI) {
 					todo: todoScanner,
 					knip: knipClient,
 					jscpd: jscpdClient,
+					fallow: fallowClient,
 					typeCoverage: typeCoverageClient,
 					depChecker,
 				},
@@ -962,6 +1079,7 @@ export default function (pi: ExtensionAPI) {
 				ruffClient,
 				knipClient,
 				jscpdClient,
+				fallowClient,
 				typeCoverageClient,
 				depChecker,
 				testRunnerClient,
@@ -983,6 +1101,7 @@ export default function (pi: ExtensionAPI) {
 				ruffClient,
 				knipClient,
 				jscpdClient,
+				fallowClient,
 				typeCoverageClient,
 				depChecker,
 				testRunnerClient,
@@ -1562,7 +1681,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("turn_end", async (_event: any, ctx) => {
 		if (!lensEnabled) return;
 		try {
-			const { knipClient, depChecker, testRunnerClient } =
+			const { knipClient, fallowClient, depChecker, testRunnerClient } =
 				await loadBootstrapClients();
 			await handleTurnEnd({
 				ctxCwd: ctx.cwd,
@@ -1571,6 +1690,7 @@ export default function (pi: ExtensionAPI) {
 				runtime,
 				cacheManager,
 				knipClient,
+				fallowClient,
 				depChecker,
 				testRunnerClient,
 				resetLSPService,

@@ -52,7 +52,7 @@ For one-shot print sessions (for example `pi --print ...`), pi-lens auto-uses a 
 
 At `turn_end`, pi-lens:
 
-- summarizes deferred findings (for example duplicates/circulars)
+- summarizes deferred findings (for example duplicates/circulars/Fallow project-graph findings)
 - persists turn findings for next context injection
 - updates debt/diagnostic tracking and cleans transient state
 - renders a review-graph impact cascade showing affected files and diagnostic propagation
@@ -177,6 +177,28 @@ Structural rules organized by language in `rules/tree-sitter-queries/`. Rules ma
 - **Style/smells** — nested-ternary, long-parameter-list, large-class, prefer-optional-chain, redundant-state, require-await
 - **Agent stubs** — no-unimplemented-stub, no-raise-not-implemented, no-ellipsis-body
 
+### Fallow Project-Graph Analysis
+
+pi-lens can run [`fallow`](https://docs.fallow.tools/) for JavaScript/TypeScript codebase intelligence: unused files/exports/dependencies, unresolved imports, architecture boundary violations, duplication, complexity findings, and refactor targets.
+
+Fallow runs as a project-level analyzer rather than a per-line linter:
+
+- At `session_start`, pi-lens warms a Fallow dead-code cache when JS/TS project scans are enabled.
+- At `turn_end`, pi-lens checks modified files for newly introduced Fallow findings. Unresolved imports/dependencies and boundary violations are surfaced as blockers; other new findings are advisory.
+- `/lens-booboo` includes a Fallow project graph section in the full review report.
+
+Commands:
+
+- `/lens-fallow status` — show CLI availability and whether automatic scans are enabled
+- `/lens-fallow install` — auto-install the managed `fallow` npm binary
+- `/lens-fallow audit [--base <ref>] [--gate <new-only|all>]` — run Fallow's PR-time audit gate
+- `/lens-fallow dead-code [file...]` — run dead-code/dependency analysis, optionally scoped to files
+- `/lens-fallow dupes` — run duplication analysis
+- `/lens-fallow health` — run complexity/refactor-target analysis
+- `/lens-fallow all` — run dead-code, duplication, and health together
+
+Use `--no-fallow` to disable automatic Fallow scans for a session.
+
 ### Semgrep CLI Integration (Experimental)
 
 pi-lens can run the locally installed `semgrep` CLI as an optional dispatch runner for security-focused findings. Semgrep diagnostics are normalized into the same pi-lens `Diagnostic` model as LSP, tree-sitter, ast-grep, and linters: high-signal security findings can become blocking, while other findings remain warnings for `/lens-booboo`/history.
@@ -216,45 +238,46 @@ Auto-install behavior depends on gate type:
 - **Operational prewarm**: installs during session warm scans / turn-end analysis paths
 - **GitHub release**: platform-specific binary downloaded from GitHub releases to `~/.pi-lens/bin/`
 
-| Tool                                | Purpose                          | Auto-installed | Gate                               |
-| ----------------------------------- | -------------------------------- | -------------- | ---------------------------------- |
-| `@biomejs/biome`                    | JS/TS lint/format/autofix        | Yes            | Config-gated                       |
-| `prettier`                          | Formatting fallback              | Yes            | Config-gated                       |
-| `yamllint`                          | YAML linting                     | Yes            | Config-gated                       |
-| `sqlfluff`                          | SQL linting/formatting           | Yes            | Config-gated                       |
-| `ruff`                              | Python lint/format/autofix       | Yes            | Language-default + flow-gated      |
-| `typescript-language-server`        | Unified LSP diagnostics          | Yes            | Language-default                   |
-| `typescript`                        | TypeScript compiler              | Yes            | Language-default                   |
-| `pyright`                           | Python type diagnostics fallback | Yes            | Flow/language-gated                |
-| `@ast-grep/cli` (sg)                | AST scans/search/replace         | Yes            | Operational prewarm                |
-| `knip`                              | Dead code analysis               | Yes            | Operational prewarm + config-gated |
-| `jscpd`                             | Duplicate code detection         | Yes            | Operational prewarm + config-gated |
-| `madge`                             | Circular dependency analysis     | Yes            | Turn-end analysis flow             |
-| `mypy`                              | Python type checking             | Yes            | Flow-gated                         |
-| `stylelint`                         | CSS/SCSS/Less linting            | Yes            | Config-gated                       |
-| `markdownlint-cli2`                 | Markdown linting                 | Yes            | Config-gated                       |
-| `shellcheck`                        | Shell script linting             | Yes            | GitHub release                     |
-| `shfmt`                             | Shell script formatting          | Yes            | GitHub release                     |
-| `rust-analyzer`                     | Rust LSP                         | Yes            | GitHub release                     |
-| `golangci-lint`                     | Go linting                       | Yes            | GitHub release                     |
-| `hadolint`                          | Dockerfile linting               | Yes            | GitHub release                     |
-| `ktlint`                            | Kotlin linting                   | Yes            | GitHub release                     |
-| `tflint`                            | Terraform linting                | Yes            | GitHub release                     |
-| `taplo`                             | TOML linting/formatting          | Yes            | GitHub release                     |
-| `terraform-ls`                      | Terraform LSP                    | Yes            | GitHub release                     |
-| `htmlhint`                          | HTML linting                     | Yes            | Config-gated                       |
-| `@prisma/language-server`           | Prisma LSP                       | Yes            | Flow-gated                         |
-| `dockerfile-language-server-nodejs` | Dockerfile LSP                   | Yes            | Flow-gated                         |
-| `intelephense`                      | PHP LSP                          | Yes            | Flow-gated                         |
-| `bash-language-server`              | Bash LSP                         | Yes            | Language-default                   |
-| `yaml-language-server`              | YAML LSP                         | Yes            | Language-default                   |
-| `vscode-langservers-extracted`      | JSON/ESLint/CSS/HTML LSP         | Yes            | Language-default                   |
-| `vscode-css-languageserver`         | CSS LSP                          | Yes            | Language-default                   |
-| `vscode-html-languageserver-bin`    | HTML LSP                         | Yes            | Language-default                   |
-| `svelte-language-server`            | Svelte LSP                       | Yes            | Flow-gated                         |
-| `@vue/language-server`              | Vue LSP                          | Yes            | Flow-gated                         |
-| `semgrep`                           | Experimental security dispatch   | Manual         | Local config / explicit opt-in     |
-| `psscriptanalyzer`                  | PowerShell linting               | Manual         | —                                  |
+| Tool                                | Purpose                          | Auto-installed | Gate                                |
+| ----------------------------------- | -------------------------------- | -------------- | ----------------------------------- |
+| `@biomejs/biome`                    | JS/TS lint/format/autofix        | Yes            | Config-gated                        |
+| `prettier`                          | Formatting fallback              | Yes            | Config-gated                        |
+| `yamllint`                          | YAML linting                     | Yes            | Config-gated                        |
+| `sqlfluff`                          | SQL linting/formatting           | Yes            | Config-gated                        |
+| `ruff`                              | Python lint/format/autofix       | Yes            | Language-default + flow-gated       |
+| `typescript-language-server`        | Unified LSP diagnostics          | Yes            | Language-default                    |
+| `typescript`                        | TypeScript compiler              | Yes            | Language-default                    |
+| `pyright`                           | Python type diagnostics fallback | Yes            | Flow/language-gated                 |
+| `@ast-grep/cli` (sg)                | AST scans/search/replace         | Yes            | Operational prewarm                 |
+| `knip`                              | Dead code analysis               | Yes            | Operational prewarm + config-gated  |
+| `fallow`                            | JS/TS project-graph analysis     | Yes            | Operational prewarm + turn-end flow |
+| `jscpd`                             | Duplicate code detection         | Yes            | Operational prewarm + config-gated  |
+| `madge`                             | Circular dependency analysis     | Yes            | Turn-end analysis flow              |
+| `mypy`                              | Python type checking             | Yes            | Flow-gated                          |
+| `stylelint`                         | CSS/SCSS/Less linting            | Yes            | Config-gated                        |
+| `markdownlint-cli2`                 | Markdown linting                 | Yes            | Config-gated                        |
+| `shellcheck`                        | Shell script linting             | Yes            | GitHub release                      |
+| `shfmt`                             | Shell script formatting          | Yes            | GitHub release                      |
+| `rust-analyzer`                     | Rust LSP                         | Yes            | GitHub release                      |
+| `golangci-lint`                     | Go linting                       | Yes            | GitHub release                      |
+| `hadolint`                          | Dockerfile linting               | Yes            | GitHub release                      |
+| `ktlint`                            | Kotlin linting                   | Yes            | GitHub release                      |
+| `tflint`                            | Terraform linting                | Yes            | GitHub release                      |
+| `taplo`                             | TOML linting/formatting          | Yes            | GitHub release                      |
+| `terraform-ls`                      | Terraform LSP                    | Yes            | GitHub release                      |
+| `htmlhint`                          | HTML linting                     | Yes            | Config-gated                        |
+| `@prisma/language-server`           | Prisma LSP                       | Yes            | Flow-gated                          |
+| `dockerfile-language-server-nodejs` | Dockerfile LSP                   | Yes            | Flow-gated                          |
+| `intelephense`                      | PHP LSP                          | Yes            | Flow-gated                          |
+| `bash-language-server`              | Bash LSP                         | Yes            | Language-default                    |
+| `yaml-language-server`              | YAML LSP                         | Yes            | Language-default                    |
+| `vscode-langservers-extracted`      | JSON/ESLint/CSS/HTML LSP         | Yes            | Language-default                    |
+| `vscode-css-languageserver`         | CSS LSP                          | Yes            | Language-default                    |
+| `vscode-html-languageserver-bin`    | HTML LSP                         | Yes            | Language-default                    |
+| `svelte-language-server`            | Svelte LSP                       | Yes            | Flow-gated                          |
+| `@vue/language-server`              | Vue LSP                          | Yes            | Flow-gated                          |
+| `semgrep`                           | Experimental security dispatch   | Manual         | Local config / explicit opt-in      |
+| `psscriptanalyzer`                  | PowerShell linting               | Manual         | —                                   |
 
 Additional language servers (gopls, ruby-lsp, solargraph, etc.) are auto-detected from PATH or installed via native package managers (`go install`, `gem install`) when their language is detected.
 
@@ -272,6 +295,7 @@ pi --immediate-format      # Format immediately after each edit instead of defer
 pi --no-autofix           # Skip auto-fix (Biome, Ruff, ESLint, stylelint, sqlfluff, RuboCop)
 pi --no-tests             # Skip test runner
 pi --no-delta             # Disable delta mode (show all diagnostics, not just new ones)
+pi --no-fallow            # Disable Fallow project-graph analysis
 pi --lens-guard           # Block git commit/push when unresolved blockers exist (experimental)
 pi --lens-semgrep         # Enable Semgrep dispatch when a local/configured Semgrep config exists
 pi --lens-semgrep-config p/ci  # Explicit Semgrep config for dispatch (requires --lens-semgrep)
@@ -297,6 +321,7 @@ pi --lens-semgrep-config p/ci  # Explicit Semgrep config for dispatch (requires 
 - `/lens-health` — runtime health, latency, and diagnostic telemetry
 - `/lens-tools` — tool installation status: globally installed, auto-installed, or npx fallback
 - `/lens-tdi` — Technical Debt Index (TDI) and project health trend
+- `/lens-fallow` — run Fallow project-graph analysis (`status`, `install`, `audit`, `dead-code`, `dupes`, `health`, `all`)
 - `/lens-semgrep` — manage experimental Semgrep dispatch (`status`, `init`, `enable`, `disable`, `clear`)
 
 ## Language Coverage
@@ -307,39 +332,39 @@ Formatting uses a single selected formatter per file: explicit project config wi
 
 Dispatch is diagnostics-oriented: automatic formatting and safe autofix happen in the post-write pipeline rather than through dispatch format-check runners.
 
-| Language              | LSP | Dispatch Runners                                                                                               | Formatter           |
-| --------------------- | --- | -------------------------------------------------------------------------------------------------------------- | ------------------- |
-| JavaScript/TypeScript | ✓   | lsp, ts-lsp, biome-check-json, tree-sitter, ast-grep-napi, type-safety, similarity, fact-rules, eslint, oxlint | biome, prettier     |
-| Python                | ✓   | lsp, pyright, ruff-lint, tree-sitter, python-slop                                                              | ruff, black         |
-| Go                    | ✓   | lsp, go-vet, golangci-lint, tree-sitter                                                                        | gofmt               |
-| Rust                  | ✓   | lsp, rust-clippy, tree-sitter                                                                                  | rustfmt             |
-| Ruby                  | ✓   | lsp, rubocop, tree-sitter                                                                                      | rubocop, standardrb |
-| C/C++                 | ✓   | lsp, cpp-check                                                                                                 | clang-format        |
-| Shell                 | ✓   | lsp, shellcheck                                                                                                | shfmt               |
-| CSS/SCSS/Less         | ✓   | lsp, stylelint                                                                                                 | biome, prettier     |
-| HTML                  | ✓   | lsp, htmlhint                                                                                                  | prettier            |
-| YAML                  | ✓   | lsp, yamllint                                                                                                  | prettier            |
-| JSON                  | ✓   | lsp                                                                                                            | biome, prettier     |
-| SQL                   | —   | sqlfluff                                                                                                       | sqlfluff            |
-| Markdown              | —   | spellcheck, markdownlint                                                                                       | prettier            |
-| Docker                | ✓   | lsp, hadolint                                                                                                  | —                   |
-| PHP                   | ✓   | lsp, php-lint, phpstan                                                                                         | php-cs-fixer        |
-| PowerShell            | ✓   | lsp, psscriptanalyzer                                                                                          | —                   |
-| Prisma                | ✓   | lsp, prisma-validate                                                                                           | —                   |
-| C#                    | ✓   | lsp, dotnet-build                                                                                              | csharpier           |
-| F#                    | ✓   | lsp                                                                                                            | fantomas            |
-| Java                  | ✓   | lsp, javac                                                                                                     | —                   |
-| Kotlin                | ✓   | lsp, ktlint                                                                                                    | ktlint              |
-| Swift                 | ✓   | lsp                                                                                                            | swiftformat         |
-| Dart                  | ✓   | lsp, dart-analyze                                                                                              | dart format         |
-| Lua                   | ✓   | lsp                                                                                                            | stylua              |
-| Zig                   | ✓   | lsp, zig-check                                                                                                 | zig fmt             |
-| Haskell               | ✓   | lsp                                                                                                            | ormolu              |
-| Elixir                | ✓   | lsp, elixir-check, credo                                                                                       | mix format          |
-| Gleam                 | ✓   | lsp, gleam-check                                                                                               | gleam format        |
-| OCaml                 | ✓   | lsp                                                                                                            | ocamlformat         |
-| Clojure               | ✓   | lsp                                                                                                            | —                   |
-| Terraform             | ✓   | lsp, tflint                                                                                                    | terraform fmt       |
-| Nix                   | ✓   | lsp                                                                                                            | nixfmt              |
-| TOML                  | ✓   | lsp, taplo                                                                                                     | taplo               |
-| CMake                 | ✓   | lsp                                                                                                            | —                   |
+| Language              | LSP | Dispatch / Project Runners                                                                                             | Formatter           |
+| --------------------- | --- | ---------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| JavaScript/TypeScript | ✓   | lsp, ts-lsp, biome-check-json, tree-sitter, ast-grep-napi, type-safety, similarity, fact-rules, eslint, oxlint, fallow | biome, prettier     |
+| Python                | ✓   | lsp, pyright, ruff-lint, tree-sitter, python-slop                                                                      | ruff, black         |
+| Go                    | ✓   | lsp, go-vet, golangci-lint, tree-sitter                                                                                | gofmt               |
+| Rust                  | ✓   | lsp, rust-clippy, tree-sitter                                                                                          | rustfmt             |
+| Ruby                  | ✓   | lsp, rubocop, tree-sitter                                                                                              | rubocop, standardrb |
+| C/C++                 | ✓   | lsp, cpp-check                                                                                                         | clang-format        |
+| Shell                 | ✓   | lsp, shellcheck                                                                                                        | shfmt               |
+| CSS/SCSS/Less         | ✓   | lsp, stylelint                                                                                                         | biome, prettier     |
+| HTML                  | ✓   | lsp, htmlhint                                                                                                          | prettier            |
+| YAML                  | ✓   | lsp, yamllint                                                                                                          | prettier            |
+| JSON                  | ✓   | lsp                                                                                                                    | biome, prettier     |
+| SQL                   | —   | sqlfluff                                                                                                               | sqlfluff            |
+| Markdown              | —   | spellcheck, markdownlint                                                                                               | prettier            |
+| Docker                | ✓   | lsp, hadolint                                                                                                          | —                   |
+| PHP                   | ✓   | lsp, php-lint, phpstan                                                                                                 | php-cs-fixer        |
+| PowerShell            | ✓   | lsp, psscriptanalyzer                                                                                                  | —                   |
+| Prisma                | ✓   | lsp, prisma-validate                                                                                                   | —                   |
+| C#                    | ✓   | lsp, dotnet-build                                                                                                      | csharpier           |
+| F#                    | ✓   | lsp                                                                                                                    | fantomas            |
+| Java                  | ✓   | lsp, javac                                                                                                             | —                   |
+| Kotlin                | ✓   | lsp, ktlint                                                                                                            | ktlint              |
+| Swift                 | ✓   | lsp                                                                                                                    | swiftformat         |
+| Dart                  | ✓   | lsp, dart-analyze                                                                                                      | dart format         |
+| Lua                   | ✓   | lsp                                                                                                                    | stylua              |
+| Zig                   | ✓   | lsp, zig-check                                                                                                         | zig fmt             |
+| Haskell               | ✓   | lsp                                                                                                                    | ormolu              |
+| Elixir                | ✓   | lsp, elixir-check, credo                                                                                               | mix format          |
+| Gleam                 | ✓   | lsp, gleam-check                                                                                                       | gleam format        |
+| OCaml                 | ✓   | lsp                                                                                                                    | ocamlformat         |
+| Clojure               | ✓   | lsp                                                                                                                    | —                   |
+| Terraform             | ✓   | lsp, tflint                                                                                                            | terraform fmt       |
+| Nix                   | ✓   | lsp                                                                                                                    | nixfmt              |
+| TOML                  | ✓   | lsp, taplo                                                                                                             | taplo               |
+| CMake                 | ✓   | lsp                                                                                                                    | —                   |

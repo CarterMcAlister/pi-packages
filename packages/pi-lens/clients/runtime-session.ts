@@ -4,9 +4,10 @@ import type { AstGrepClient } from "./ast-grep-client.js";
 import type { BiomeClient } from "./biome-client.js";
 import type { CacheManager } from "./cache-manager.js";
 import type { DependencyChecker } from "./dependency-checker.js";
+import type { FallowClient } from "./fallow-client.js";
 import { getDiagnosticTracker } from "./diagnostic-tracker.js";
 import { clearAllSessions as clearFileTimeSessions } from "./file-time.js";
-import { getKnipIgnorePatterns } from "./file-utils.js";
+
 import type { GoClient } from "./go-client.js";
 import type { JscpdClient } from "./jscpd-client.js";
 import type { KnipClient, KnipResult } from "./knip-client.js";
@@ -52,6 +53,7 @@ interface SessionStartDeps {
 	ruffClient: RuffClient;
 	knipClient: KnipClient;
 	jscpdClient: JscpdClient;
+	fallowClient?: FallowClient;
 	typeCoverageClient: TypeCoverageClient;
 	depChecker: DependencyChecker;
 	testRunnerClient: TestRunnerClient;
@@ -203,8 +205,14 @@ function scheduleStartupScans(
 	languageProfile: ReturnType<typeof detectProjectLanguageProfile>,
 	dbg: SessionStartDeps["dbg"],
 ): void {
-	const { todoScanner, cacheManager, knipClient, jscpdClient, astGrepClient } =
-		deps;
+	const {
+		todoScanner,
+		cacheManager,
+		knipClient,
+		jscpdClient,
+		fallowClient,
+		astGrepClient,
+	} = deps;
 
 	const runTask = (name: string, task: () => Promise<void>): void => {
 		const startedAt = Date.now();
@@ -229,7 +237,13 @@ function scheduleStartupScans(
 	const canRunJsTsHeavyScans = canRunStartupHeavyScans(languageProfile, "jsts");
 	const scanNames = ["todo"];
 	if (canRunJsTsHeavyScans) {
-		scanNames.push("knip", "jscpd", "ast-grep exports", "project index");
+		scanNames.push(
+			"knip",
+			"jscpd",
+			...(fallowClient ? ["fallow"] : []),
+			"ast-grep exports",
+			"project index",
+		);
 	}
 	dbg(`session_start: launching background scans (${scanNames.join(", ")})`);
 
@@ -266,10 +280,7 @@ function scheduleStartupScans(
 				);
 			} else {
 				const startMs = Date.now();
-				const knipResult = await knipClient.analyze(
-					analysisRoot,
-					getKnipIgnorePatterns(),
-				);
+				const knipResult = await knipClient.analyze(analysisRoot);
 				if (!runtime.isCurrentSession(sessionGeneration)) return;
 				cacheManager.writeCache("knip", knipResult, analysisRoot, {
 					scanDurationMs: Date.now() - startMs,
@@ -306,6 +317,37 @@ function scheduleStartupScans(
 			dbg("session_start jscpd: not available");
 		}
 	});
+
+	// Fallow — project-graph analysis (dead code, duplication, health)
+	if (fallowClient) {
+		runTask("fallow", async () => {
+			if (deps.getFlag("no-fallow")) {
+				dbg("session_start Fallow: disabled by --no-fallow");
+				return;
+			}
+			if (await fallowClient.ensureAvailable()) {
+				if (!runtime.isCurrentSession(sessionGeneration)) return;
+				const cached = cacheManager.readCache<
+					Awaited<ReturnType<FallowClient["deadCode"]>>
+				>("fallow-dead-code", analysisRoot);
+				if (cached) {
+					if (!runtime.isCurrentSession(sessionGeneration)) return;
+					dbg("session_start Fallow: dead-code cache hit");
+				} else {
+					const startMs = Date.now();
+					const fallowResult = await fallowClient.deadCode(analysisRoot);
+					if (!runtime.isCurrentSession(sessionGeneration)) return;
+					cacheManager.writeCache("fallow-dead-code", fallowResult, analysisRoot, {
+						scanDurationMs: Date.now() - startMs,
+					});
+					dbg(`session_start Fallow dead-code scan done (${Date.now() - startMs}ms)`);
+				}
+			} else {
+				if (!runtime.isCurrentSession(sessionGeneration)) return;
+				dbg("session_start Fallow: not available");
+			}
+		});
+	}
 
 	// ast-grep — export scan for duplicate detection
 	runTask("ast-grep-exports", async () => {

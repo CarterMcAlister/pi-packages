@@ -107,8 +107,8 @@ export class KnipClient {
 	 * Check if knip CLI is available, auto-install if not
 	 */
 	async ensureAvailable(): Promise<boolean> {
-		// Fast path: already checked
-		if (this.knipAvailable !== null) return this.knipAvailable;
+		// Fast path: already checked successfully
+		if (this.knipAvailable === true) return true;
 		if (this.ensureInFlight) return this.ensureInFlight;
 
 		this.ensureInFlight = this.doEnsureAvailable();
@@ -141,7 +141,6 @@ export class KnipClient {
 			return true;
 		}
 
-		this.knipAvailable = false;
 		return false;
 	}
 
@@ -156,7 +155,7 @@ export class KnipClient {
 	 * Re-entrancy safe: concurrent calls resolving to the same project
 	 * root share a single knip process via `inFlight`.
 	 */
-	async analyze(cwd?: string, _ignore?: string[]): Promise<KnipResult> {
+	async analyze(cwd?: string): Promise<KnipResult> {
 		const targetDir = this.resolveProjectRoot(cwd || process.cwd());
 		if (!targetDir) {
 			// No package.json / knip config anywhere up the tree. Running knip

@@ -7,12 +7,12 @@ import type {
 import type { AstGrepClient } from "../clients/ast-grep-client.js";
 import type { ComplexityClient } from "../clients/complexity-client.js";
 import type { DependencyChecker } from "../clients/dependency-checker.js";
+import type { FallowClient } from "../clients/fallow-client.js";
 import { createDispatchContext } from "../clients/dispatch/dispatcher.js";
 import { evaluateRules } from "../clients/dispatch/fact-rule-runner.js";
 import { runProviders } from "../clients/dispatch/fact-runner.js";
 import { FactStore } from "../clients/dispatch/fact-store.js";
 import {
-	getKnipIgnorePatterns,
 	isTestFile,
 	readGitignoreDirs,
 } from "../clients/file-utils.js";
@@ -128,6 +128,7 @@ export async function handleBooboo(
 		todo: TodoScanner;
 		knip: KnipClient;
 		jscpd: JscpdClient;
+		fallow: FallowClient;
 		typeCoverage: TypeCoverageClient;
 		depChecker: DependencyChecker;
 	},
@@ -862,10 +863,7 @@ export async function handleBooboo(
 			return { findings: 0, status: "skipped" };
 		}
 
-		const knipResult = await clients.knip.analyze(
-			targetPath,
-			getKnipIgnorePatterns(),
-		);
+		const knipResult = await clients.knip.analyze(targetPath);
 
 		// Filter out test file issues as additional safeguard
 		const filteredIssues = knipResult.issues.filter(
@@ -934,7 +932,96 @@ export async function handleBooboo(
 		return { findings: filteredClones.length, status: "done" };
 	});
 
-	// Runner 8: Type coverage
+	// Runner 8: Fallow project-graph analysis
+	await tracker.run("fallow project graph", async () => {
+		if (pi.getFlag("no-fallow")) {
+			return { findings: 0, status: "skipped" };
+		}
+		if (!langs.has("javascript") && !langs.has("typescript")) {
+			return { findings: 0, status: "skipped" };
+		}
+		if (!(await clients.fallow.ensureAvailable())) {
+			return { findings: 0, status: "skipped" };
+		}
+
+		const fallowResult = await clients.fallow.analyzeProject(targetPath);
+		const deadCodeIssues = fallowResult.deadCode.issues.filter(
+			(issue) => !issue.file || shouldIncludeFile(issue.file),
+		);
+		const duplicateGroups = fallowResult.duplication.clones.filter((clone) =>
+			clone.instances.some((instance) => shouldIncludeFile(instance.file)),
+		);
+		const healthFindings = fallowResult.health.findings.filter((finding) =>
+			shouldIncludeFile(finding.file),
+		);
+		const totalFindings =
+			deadCodeIssues.length + duplicateGroups.length + healthFindings.length;
+
+		if (totalFindings > 0) {
+			summaryItems.push({
+				category: "Fallow",
+				count: totalFindings,
+				severity: fallowResult.deadCode.unlistedDeps.length > 0 ? "🔴" : "🟡",
+				fixable: deadCodeIssues.some((issue) =>
+					issue.actions?.some(
+						(action) =>
+							typeof action === "object" &&
+							action !== null &&
+							(action as { auto_fixable?: unknown }).auto_fixable === true,
+					),
+				),
+			});
+
+			let fullSection = `## Fallow Project Graph\n\n`;
+			fullSection += `**${totalFindings} finding(s)** — dead code ${deadCodeIssues.length}, duplicates ${duplicateGroups.length}, health ${healthFindings.length}\n\n`;
+
+			if (deadCodeIssues.length > 0) {
+				fullSection += `### Dead Code / Dependencies\n\n| Type | Name | File |\n|------|------|------|\n`;
+				for (const issue of deadCodeIssues.slice(0, 20)) {
+					fullSection += `| ${issue.type} | ${issue.name} | ${issue.file ?? ""}${issue.line ? `:${issue.line}` : ""} |\n`;
+				}
+				if (deadCodeIssues.length > 20) {
+					fullSection += `| ... | +${deadCodeIssues.length - 20} more | |\n`;
+				}
+				fullSection += "\n";
+			}
+
+			if (duplicateGroups.length > 0) {
+				fullSection += `### Duplicates\n\n| Lines | Instances | Locations |\n|-------|-----------|-----------|\n`;
+				for (const clone of duplicateGroups.slice(0, 10)) {
+					const locations = clone.instances
+						.slice(0, 3)
+						.map(
+							(instance) =>
+								`${instance.file}${instance.startLine ? `:${instance.startLine}` : ""}`,
+						)
+						.join(" ↔ ");
+					fullSection += `| ${clone.lines} | ${clone.instances.length} | ${locations} |\n`;
+				}
+				if (duplicateGroups.length > 10) {
+					fullSection += `| ... | +${duplicateGroups.length - 10} more | |\n`;
+				}
+				fullSection += "\n";
+			}
+
+			if (healthFindings.length > 0) {
+				fullSection += `### Complexity / Health\n\n| File | Function | Cyclomatic | Cognitive |\n|------|----------|------------|-----------|\n`;
+				for (const finding of healthFindings.slice(0, 15)) {
+					fullSection += `| ${finding.file}${finding.line ? `:${finding.line}` : ""} | ${finding.name} | ${finding.cyclomatic ?? ""} | ${finding.cognitive ?? ""} |\n`;
+				}
+				if (healthFindings.length > 15) {
+					fullSection += `| ... | +${healthFindings.length - 15} more | | |\n`;
+				}
+				fullSection += "\n";
+			}
+
+			fullReport.push(fullSection);
+		}
+
+		return { findings: totalFindings, status: "done" };
+	});
+
+	// Runner 9: Type coverage
 	await tracker.run("type coverage", async () => {
 		if (!langs.has("typescript")) {
 			return { findings: 0, status: "skipped" };

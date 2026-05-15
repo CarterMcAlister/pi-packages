@@ -44,6 +44,12 @@ export const TOOL_REGISTRY: ToolInfo[] = [
 		versionPattern: /(\d+\.\d+\.\d+)/,
 	},
 	{
+		name: "fallow",
+		command: "npx",
+		versionCommand: ["fallow", "--version"],
+		versionPattern: /(\d+\.\d+\.\d+)/,
+	},
+	{
 		name: "jscpd",
 		command: "npx",
 		versionCommand: ["jscpd", "--version"],

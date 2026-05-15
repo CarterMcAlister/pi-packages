@@ -4,7 +4,7 @@
  * Minimal auto-install: Core tools that run frequently.
  * Other tools require manual installation with clear instructions.
  *
- * Auto-install (22 tools):
+ * Auto-install (23 tools):
  * - typescript-language-server (TypeScript LSP)
  * - pyright (Python LSP)
  * - bash-language-server (Bash LSP)
@@ -17,6 +17,7 @@
  * - jscpd (duplicate code detection)
  * - @ast-grep/cli (structural code search)
  * - knip (dead code detection)
+ * - fallow (project-graph dead code, duplication, health)
  * - yamllint (YAML linting)
  * - sqlfluff (SQL linting/formatting)
  * - markdownlint-cli2 (Markdown linting)
@@ -216,6 +217,15 @@ const TOOLS: ToolDefinition[] = [
 		installStrategy: "npm",
 		packageName: "knip",
 		binaryName: "knip",
+	},
+	{
+		id: "fallow",
+		name: "Fallow",
+		checkCommand: "fallow",
+		checkArgs: ["--version"],
+		installStrategy: "npm",
+		packageName: "fallow",
+		binaryName: "fallow",
 	},
 	{
 		id: "yamllint",
@@ -1592,6 +1602,7 @@ const NEEDS_POSTINSTALL = new Set([
 	"@ast-grep/cli", // postinstall copies platform binary (ast-grep.exe/sg.exe) into place
 	"@ast-grep/napi",
 	"esbuild",
+	"fallow", // npm package resolves platform-specific native binaries
 	"intelephense", // postinstall fetches platform binary; --ignore-scripts breaks install
 ]);
 

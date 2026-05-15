@@ -2,6 +2,7 @@ import type { AgentBehaviorClient } from "./agent-behavior-client.js";
 import type { BiomeClient } from "./biome-client.js";
 import type { ComplexityClient } from "./complexity-client.js";
 import type { DependencyChecker } from "./dependency-checker.js";
+import type { FallowClient } from "./fallow-client.js";
 import type { GoClient } from "./go-client.js";
 import type { JscpdClient } from "./jscpd-client.js";
 import type { KnipClient } from "./knip-client.js";
@@ -18,6 +19,7 @@ export interface BootstrapClients {
 	knipClient: KnipClient;
 	todoScanner: TodoScanner;
 	jscpdClient: JscpdClient;
+	fallowClient: FallowClient;
 	typeCoverageClient: TypeCoverageClient;
 	depChecker: DependencyChecker;
 	testRunnerClient: TestRunnerClient;
@@ -38,6 +40,7 @@ export function loadBootstrapClients(): Promise<BootstrapClients> {
 			knipMod,
 			todoMod,
 			jscpdMod,
+			fallowMod,
 			typeCoverageMod,
 			depCheckerMod,
 			testRunnerMod,
@@ -52,6 +55,7 @@ export function loadBootstrapClients(): Promise<BootstrapClients> {
 			import("./knip-client.js"),
 			import("./todo-scanner.js"),
 			import("./jscpd-client.js"),
+			import("./fallow-client.js"),
 			import("./type-coverage-client.js"),
 			import("./dependency-checker.js"),
 			import("./test-runner-client.js"),
@@ -68,6 +72,7 @@ export function loadBootstrapClients(): Promise<BootstrapClients> {
 			knipClient: new knipMod.KnipClient(),
 			todoScanner: new todoMod.TodoScanner(),
 			jscpdClient: new jscpdMod.JscpdClient(),
+			fallowClient: new fallowMod.FallowClient(),
 			typeCoverageClient: new typeCoverageMod.TypeCoverageClient(),
 			depChecker: new depCheckerMod.DependencyChecker(),
 			testRunnerClient: new testRunnerMod.TestRunnerClient(),

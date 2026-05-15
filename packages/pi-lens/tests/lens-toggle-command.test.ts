@@ -65,8 +65,10 @@ describe("lens-toggle command", () => {
 		const { commands, flags } = installLens();
 
 		expect(flags.has("no-lens")).toBe(true);
+		expect(flags.has("no-fallow")).toBe(true);
 		expect(commands.has("lens-toggle")).toBe(true);
 		expect(commands.has("lens-widget-toggle")).toBe(true);
+		expect(commands.has("lens-fallow")).toBe(true);
 		expect(commands.has("lens-enable")).toBe(false);
 		expect(commands.has("lens-disable")).toBe(false);
 		expect(commands.has("lens-status")).toBe(false);

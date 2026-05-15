@@ -4,10 +4,17 @@ import { logCascade } from "./cascade-logger.js";
 import { normalizeMapKey } from "./path-utils.js";
 import type { DependencyChecker } from "./dependency-checker.js";
 import {
+	isFallowProjectConfigFile,
+	isFallowSourceFile,
+	type FallowClient,
+	type FallowDeadCodeResult,
+	type FallowIssue,
+} from "./fallow-client.js";
+import {
 	resolveRunnerPath,
 	toRunnerDisplayPath,
 } from "./dispatch/runner-context.js";
-import { getKnipIgnorePatterns } from "./file-utils.js";
+
 import type { KnipClient, KnipIssue, KnipResult } from "./knip-client.js";
 import { logLatency } from "./latency-logger.js";
 import { RUNTIME_CONFIG } from "./runtime-config.js";
@@ -21,6 +28,7 @@ interface TurnEndDeps {
 	runtime: RuntimeCoordinator;
 	cacheManager: CacheManager;
 	knipClient: KnipClient;
+	fallowClient?: FallowClient;
 	depChecker: DependencyChecker;
 	testRunnerClient: TestRunnerClient;
 	resetLSPService: () => void;
@@ -68,6 +76,22 @@ function capTurnEndMessage(content: string): string {
 	return out;
 }
 
+function isFallowBlocker(issue: FallowIssue): boolean {
+	return (
+		issue.type === "unlisted-dependency" ||
+		issue.type === "unresolved-import" ||
+		issue.type === "boundary-violation"
+	);
+}
+
+function formatFallowIssue(cwd: string, issue: FallowIssue): string {
+	const display = issue.file
+		? toRunnerDisplayPath(cwd, issue.file)
+		: "(project)";
+	const location = issue.line ? `${display}:${issue.line}` : display;
+	return `${location} — ${issue.type}: ${issue.name}`;
+}
+
 export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 	const {
 		ctxCwd,
@@ -76,6 +100,7 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 		runtime,
 		cacheManager,
 		knipClient,
+		fallowClient,
 		depChecker,
 		testRunnerClient,
 		resetLSPService,
@@ -209,7 +234,7 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 		dbg("turn_end: skipping knip (startup scan still in flight)");
 		knipMeta = { skipped: true };
 	} else if (await knipClient.ensureAvailable()) {
-		const knipResult = await knipClient.analyze(cwd, getKnipIgnorePatterns());
+		const knipResult = await knipClient.analyze(cwd);
 		const prevKnip = cacheManager.readCache<KnipResult>("knip", cwd);
 		cacheManager.writeCache("knip", knipResult, cwd);
 		knipMeta = {
@@ -279,6 +304,105 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 		phase: "knip",
 		durationMs: Date.now() - t2,
 		metadata: knipMeta,
+	});
+
+	const tFallow = Date.now();
+	let fallowMeta: {
+		skipped?: boolean;
+		success?: boolean;
+		totalIssues?: number;
+		newIssues?: number;
+		blockerIssues?: number;
+		reason?: string;
+	} = {};
+	if (!fallowClient || getFlag("no-fallow")) {
+		fallowMeta = { skipped: true };
+	} else if (runtime.isStartupScanInFlight("fallow")) {
+		dbg("turn_end: skipping Fallow (startup scan still in flight)");
+		fallowMeta = { skipped: true };
+	} else {
+		const fallowCacheRoot = fallowClient.resolveProjectRoot(cwd);
+		const modifiedFiles = files.map((file) => resolveRunnerPath(cwd, file));
+		const sourceFiles = modifiedFiles.filter(isFallowSourceFile);
+		const runProjectScan = modifiedFiles.some(isFallowProjectConfigFile);
+		if (!fallowCacheRoot) {
+			fallowMeta = { skipped: true, reason: "no-project-root" };
+		} else if (sourceFiles.length === 0 && !runProjectScan) {
+			fallowMeta = { skipped: true, reason: "no-js-ts-files" };
+		} else if (await fallowClient.ensureAvailable()) {
+			const fallowResult = await fallowClient.deadCode(
+				fallowCacheRoot,
+				runProjectScan ? {} : { files: sourceFiles },
+			);
+			const prevFallow = cacheManager.readCache<FallowDeadCodeResult>(
+				"fallow-dead-code",
+				fallowCacheRoot,
+			);
+			fallowMeta = {
+				success: fallowResult.success,
+				totalIssues: fallowResult.issues.length,
+				newIssues: 0,
+				blockerIssues: 0,
+				...(!fallowResult.success && { reason: fallowResult.summary }),
+			};
+
+			if (fallowResult.success && fallowResult.issues.length > 0) {
+				const modifiedSet = new Set(modifiedFiles.map(normalizeMapKey));
+				const newIssues = fallowClient
+					.newIssues(fallowResult, prevFallow?.data)
+					.filter((issue) => {
+						if (!issue.file) return runProjectScan;
+						return modifiedSet.has(
+							normalizeMapKey(resolveRunnerPath(cwd, issue.file)),
+						);
+					});
+				const blockerIssues = newIssues.filter(isFallowBlocker);
+				const advisoryIssues = newIssues.filter(
+					(issue) => !isFallowBlocker(issue),
+				);
+				fallowMeta.newIssues = newIssues.length;
+				fallowMeta.blockerIssues = blockerIssues.length;
+
+				if (blockerIssues.length > 0) {
+					let report =
+						"🔴 New project-graph blockers in modified code (Fallow):\n";
+					for (const issue of blockerIssues.slice(0, 5)) {
+						report += `  ${formatFallowIssue(cwd, issue)}\n`;
+					}
+					blockerParts.push(report);
+				}
+
+				if (advisoryIssues.length > 0) {
+					let report =
+						"⚠️ New project-graph findings in modified files (Fallow):\n";
+					for (const issue of advisoryIssues.slice(0, 5)) {
+						report += `  ${formatFallowIssue(cwd, issue)}\n`;
+					}
+					advisoryParts.push(report);
+				}
+			}
+			cacheManager.writeCache(
+				"fallow-dead-code",
+				fallowClient.mergeDeadCodeBaseline(
+					prevFallow?.data,
+					fallowResult,
+					runProjectScan
+						? undefined
+						: { root: fallowCacheRoot, files: sourceFiles },
+				),
+				fallowCacheRoot,
+			);
+		} else {
+			fallowMeta = { skipped: true, reason: "unavailable" };
+		}
+	}
+	logLatency({
+		type: "phase",
+		toolName: "turn_end",
+		filePath: cwd,
+		phase: "fallow",
+		durationMs: Date.now() - tFallow,
+		metadata: fallowMeta,
 	});
 
 	const t3 = Date.now();

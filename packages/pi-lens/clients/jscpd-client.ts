@@ -99,8 +99,8 @@ export class JscpdClient {
 	 * Check if jscpd is available, auto-install if not
 	 */
 	async ensureAvailable(): Promise<boolean> {
-		// Fast path: already checked
-		if (this.available !== null) return this.available;
+		// Fast path: already checked successfully
+		if (this.available === true) return true;
 
 		// Deduplicate concurrent calls
 		if (this.ensureInFlight) return this.ensureInFlight;
@@ -156,7 +156,6 @@ export class JscpdClient {
 			return true;
 		}
 
-		this.available = false;
 		return false;
 	}
 
